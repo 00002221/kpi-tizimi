@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
-import { LangSwitch, Modal } from '../../components/ui.jsx'
+import { Alert, LangSwitch, Modal } from '../../components/ui.jsx'
+import { supabase } from '../../supabase.js'
 import Dashboard from './Dashboard.jsx'
 import Attendance from './Attendance.jsx'
 import Employees from './Employees.jsx'
@@ -26,6 +27,20 @@ const I = {
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></>,
   out: <path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l-5-5 5-5M5 12h11" />,
 }
+// Sayt kutayotgan baza versiyasi (supabase/schema.sql dagi schema_version() bilan bir xil bo'lsin)
+export const REQUIRED_DB = 4
+
+// Sayt yangilanib, baza eski qolsa — adminga darhol ko'rinadigan ogohlantirish
+function DbVersionWarning() {
+  const { t } = useI18n()
+  const [have, setHave] = useState(null)
+  useEffect(() => {
+    supabase.rpc('schema_version').then(({ data, error }) => setHave(error ? 0 : data))
+  }, [])
+  if (have == null || have >= REQUIRED_DB) return null
+  return <div style={{ marginBottom: 16 }}><Alert kind="error">{t('db.outdated', { have: have || '?', need: REQUIRED_DB })}</Alert></div>
+}
+
 const Svg = ({ d }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>
 )
@@ -92,6 +107,7 @@ export default function AdminShell() {
 
       <div className="admin-main">
         <main className="admin-content">
+          <DbVersionWarning />
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/attendance" element={<Attendance />} />

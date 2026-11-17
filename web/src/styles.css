@@ -534,3 +534,11 @@ button.chip { cursor: pointer; }
 .today-embedded .hero { border-radius: 28px; padding-top: 18px; }
 .today-embedded .today-body, .today-embedded .today-actions { padding: 0; }
 @media (max-width: 860px) { .admin-bottomnav { display: grid; } }
+
+/* v4: vaqtinchalik parol, «parolni unutdim», avto-ketish belgisi */
+.forgot-link { align-self: center; font-size: 14px; margin-top: 2px; }
+.temp-pw { display: grid; gap: 10px; background: var(--paper); border-radius: 14px; padding: 14px 16px; }
+.temp-pw > div { display: flex; flex-direction: column; gap: 2px; }
+.temp-pw b { font-size: 17px; overflow-wrap: anywhere; }
+.temp-pw-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 26px !important; letter-spacing: .08em; color: var(--lapis); }
+.auto-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #FFF1CC; color: var(--saffron-ink); vertical-align: 1px; }

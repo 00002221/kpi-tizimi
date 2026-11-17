@@ -29,6 +29,7 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [forgot, setForgot] = useState(false)
 
   const submit = async (e) => {
     e.preventDefault()
@@ -59,6 +60,10 @@ export function Login() {
         </Field>
         {error && <Alert kind="error">{error}</Alert>}
         <Button type="submit" loading={busy} size="lg">{t('auth.login_btn')}</Button>
+        <button type="button" className="link-btn forgot-link" aria-expanded={forgot} onClick={() => setForgot(!forgot)}>
+          {t('auth.forgot')}
+        </button>
+        {forgot && <Alert kind="info">{t('auth.forgot_text')}</Alert>}
       </form>
     </AuthLayout>
   )
