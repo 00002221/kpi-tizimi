@@ -643,3 +643,4 @@ button.m-card:active { background: var(--lapis-50); }
 .hero-ontime .chip { background: rgba(0, 40, 20, .22); }
 .task-item .task-main { flex: none; }
 .slide-hint { margin-bottom: 2px; }
+.day-over-note { text-align: center; color: var(--ink-2); font-weight: 500; margin: 0; line-height: 1.45; }

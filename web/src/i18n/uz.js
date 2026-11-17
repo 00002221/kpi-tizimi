@@ -485,4 +485,6 @@ export default {
   'err.OWN_COMPANY': "O'zingiz a'zo bo'lgan kompaniyaning holatini o'zgartirib bo'lmaydi.",
   'tg.send_photos': "Xabarga xodimning selfisini qo'shish",
   'tg.send_photos_hint': "Kelish va kechikish xabari selfi bilan keladi; yuz mos kelmasa — namuna va bugungi selfi. Guruhdagi hamma rasmni ko'radi.",
+  'today.day_over': "Ish vaqti {time} da tugagan, bugungi kelishni endi belgilab bo'lmaydi. Kerak bo'lsa, adminga murojaat qiling.",
+  'err.WORKDAY_OVER': "Ish vaqti {n} da tugagan, bugungi kelishni endi belgilab bo'lmaydi. Kerak bo'lsa, adminga murojaat qiling.",
 }
