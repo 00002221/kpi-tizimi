@@ -35,10 +35,10 @@ export default function MapPicker({ lat, lng, radius, onPick }) {
       dot.setLatLng(ll)
     } else {
       layers.current.circle = L.circle(ll, {
-        radius: radius || 100, color: '#12A39A', weight: 2, dashArray: '6 6', fillColor: '#12A39A', fillOpacity: 0.12,
+        radius: radius || 100, color: '#138A5E', weight: 2, dashArray: '6 6', fillColor: '#138A5E', fillOpacity: 0.12,
       }).addTo(m)
       layers.current.dot = L.circleMarker(ll, {
-        radius: 8, color: '#fff', weight: 3, fillColor: '#1D3A8A', fillOpacity: 1,
+        radius: 8, color: '#fff', weight: 3, fillColor: '#23255C', fillOpacity: 1,
       }).addTo(m)
     }
     if (!m.getBounds().contains(ll)) m.setView(ll, Math.max(m.getZoom(), 16))

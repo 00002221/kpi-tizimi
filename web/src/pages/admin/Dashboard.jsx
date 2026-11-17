@@ -8,8 +8,8 @@ import { Alert, Empty, PageHeader, Spinner, StatusBadge } from '../../components
 import { addDays, errorText, fmtDate, fmtNum, fmtTime, todayIn } from '../../lib/utils.js'
 
 export const CHART = {
-  present: '#12A39A', late: '#E0A21B', absent: '#C2413A', excused: '#7B6FD0',
-  grid: '#E6E8F0', axis: '#6B7390', kpi: '#1D3A8A',
+  present: '#138A5E', late: '#E9A100', absent: '#C93C3C', excused: '#6F63CC',
+  grid: '#E4E6EF', axis: '#5D6280', kpi: '#23255C',
 }
 
 function ChartTooltip({ active, payload, label }) {
@@ -115,7 +115,7 @@ export default function Dashboard() {
                   <CartesianGrid vertical={false} stroke={CHART.grid} />
                   <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART.axis }} tickLine={false} axisLine={{ stroke: CHART.grid }} interval="preserveStartEnd" minTickGap={14} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART.axis }} tickLine={false} axisLine={false} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(29,58,138,.06)' }} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(35,37,92,.06)' }} />
                   <Bar dataKey="on_time" name={t('status.present')} stackId="a" fill={CHART.present} stroke="#fff" strokeWidth={2} />
                   <Bar dataKey="late" name={t('status.late')} stackId="a" fill={CHART.late} stroke="#fff" strokeWidth={2} />
                   <Bar dataKey="absent" name={t('status.absent')} stackId="a" fill={CHART.absent} stroke="#fff" strokeWidth={2} radius={[4, 4, 0, 0]} />
@@ -154,10 +154,10 @@ export default function Dashboard() {
               <BarChart data={kpiRows} layout="vertical" margin={{ top: 0, right: 40, left: 0, bottom: 0 }}>
                 <CartesianGrid horizontal={false} stroke={CHART.grid} />
                 <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: CHART.axis }} tickLine={false} axisLine={false} />
-                <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 12, fill: '#18203A' }} tickLine={false} axisLine={false} />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(29,58,138,.06)' }} />
+                <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 12, fill: '#1B1F3B' }} tickLine={false} axisLine={false} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(35,37,92,.06)' }} />
                 <Bar dataKey="kpi" name="KPI" fill={CHART.kpi} radius={[0, 4, 4, 0]} barSize={18}
-                  label={{ position: 'right', fontSize: 12, fill: '#18203A', formatter: (v) => fmtNum(v, 1) }}>
+                  label={{ position: 'right', fontSize: 12, fill: '#1B1F3B', formatter: (v) => fmtNum(v, 1) }}>
                   {kpiRows.map((r) => <Cell key={r.name} fill={CHART.kpi} />)}
                 </Bar>
               </BarChart>

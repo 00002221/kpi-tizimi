@@ -3,8 +3,8 @@
   "short_name": "KPI",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F5F6FA",
-  "theme_color": "#1D3A8A",
+  "background_color": "#F3F4F8",
+  "theme_color": "#23255C",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]

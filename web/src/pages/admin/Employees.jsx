@@ -6,6 +6,7 @@ import { Alert, Button, Empty, Field, Modal, PageHeader, Spinner, Tabs, Toggle, 
 import { errorText, fmtDate, fmtMoney, hhmm } from '../../lib/utils.js'
 import useMembers from './useMembers.js'
 import { WeekdayPicker } from './Settings.jsx'
+import TimeInput from '../../components/TimeInput.jsx'
 
 export function InvitePanel() {
   const { t } = useI18n()
@@ -240,11 +241,11 @@ function EditMember({ m, face, onFaceReset, onClose, onSaved }) {
         {f.custom_schedule && (
           <div className="subpanel">
             <div className="form-grid">
-              <Field label={t('set.work_start')}><input type="time" value={f.work_start} onChange={set('work_start')} /></Field>
-              <Field label={t('set.work_end')}><input type="time" value={f.work_end} onChange={set('work_end')} /></Field>
+              <Field label={t('set.work_start')}><TimeInput value={f.work_start} onChange={(v) => setF({ ...f, work_start: v })} /></Field>
+              <Field label={t('set.work_end')}><TimeInput value={f.work_end} onChange={(v) => setF({ ...f, work_end: v })} /></Field>
               <Field label={t('set.grace')}><input type="number" min="0" max="240" value={f.grace_minutes} onChange={set('grace_minutes')} /></Field>
-              <Field label={t('set.break_start')}><input type="time" value={f.break_start === '—' ? '' : f.break_start} onChange={set('break_start')} /></Field>
-              <Field label={t('set.break_end')}><input type="time" value={f.break_end === '—' ? '' : f.break_end} onChange={set('break_end')} /></Field>
+              <Field label={t('set.break_start')}><TimeInput allowEmpty value={f.break_start === '—' ? '' : f.break_start} onChange={(v) => setF({ ...f, break_start: v })} /></Field>
+              <Field label={t('set.break_end')}><TimeInput allowEmpty value={f.break_end === '—' ? '' : f.break_end} onChange={(v) => setF({ ...f, break_end: v })} /></Field>
             </div>
             <Field label={t('set.work_days')}>
               <WeekdayPicker value={f.work_days} onChange={(v) => setF({ ...f, work_days: v })} />

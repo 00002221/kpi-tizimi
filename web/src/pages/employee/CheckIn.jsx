@@ -2,52 +2,36 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
-import { Alert, Button, Modal, Spinner, StatusBadge, useToast } from '../../components/ui.jsx'
+import { Alert, Button, LangSwitch, Modal, Spinner, useToast } from '../../components/ui.jsx'
 import CameraCapture from '../../components/CameraCapture.jsx'
 import FaceEnroll from '../../components/FaceEnroll.jsx'
+import SlideConfirm from '../../components/SlideConfirm.jsx'
+import DayTimeline, { fromMin, toMin } from '../../components/DayTimeline.jsx'
 import { faceDescriptor, loadFaceModels } from '../../lib/face.js'
-import { distanceM, errorText, fmtDate, fmtMinutes, fmtTime, getPosition, hhmm, nowTimeIn, offsetM } from '../../lib/utils.js'
+import { cls, distanceM, errorText, fmtMinutes, fmtNum, fmtTime, getPosition, hhmm, monthStart, nowTimeIn } from '../../lib/utils.js'
 
-// Ishxona hududi: markazda ofis, aylana — ruxsat etilgan radius, nuqta — siz
-function GeoRing({ office, pos, state, label }) {
-  const C = 150, R = 104, MAX = 134
-  let dot = null
-  if (pos && office?.lat != null) {
-    const o = offsetM(office.lat, office.lng, pos.latitude, pos.longitude)
-    let x = (o.x / office.radius_m) * R, y = (-o.y / office.radius_m) * R
-    const len = Math.hypot(x, y)
-    if (len > MAX) { x = (x / len) * MAX; y = (y / len) * MAX }
-    dot = { x: C + x, y: C + y, inside: pos.distance <= office.radius_m }
-  }
-  return (
-    <div className={`ring ring-${state}`}>
-      <svg viewBox="0 0 300 300" aria-hidden="true">
-        <circle cx={C} cy={C} r={MAX + 8} className="ring-outer" />
-        <circle cx={C} cy={C} r={R} className="ring-zone" />
-        <circle cx={C} cy={C} r={R} className="ring-edge" />
-        {state === 'locating' && <circle cx={C} cy={C} r={R} className="ring-pulse" />}
-        <circle cx={C} cy={C} r="6" className="ring-office" />
-        <text x={C} y={C + 24} textAnchor="middle" className="ring-label">{label}</text>
-        {dot && (
-          <>
-            <line x1={C} y1={C} x2={dot.x} y2={dot.y} className={dot.inside ? 'ring-line' : 'ring-line ring-line-out'} />
-            <circle cx={dot.x} cy={dot.y} r="11" className={dot.inside ? 'ring-me' : 'ring-me ring-me-out'} />
-          </>
-        )}
-      </svg>
-    </div>
-  )
+const WEEKDAYS = { uz: ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'] }
+const MONTHS = { uz: ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'] }
+
+function longDate(dateStr, lang) {
+  const d = new Date(dateStr + 'T12:00:00Z')
+  if (lang === 'uz') return `${WEEKDAYS.uz[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS.uz[d.getUTCMonth()]}`
+  const s = new Intl.DateTimeFormat(lang === 'ru' ? 'ru-RU' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(d)
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-export default function CheckIn() {
-  const { t } = useI18n()
+const fmtDist = (m) => (m >= 1000 ? `${fmtNum(m / 1000, 1)} km` : `${Math.round(m)} m`)
+
+export default function CheckIn({ embedded }) {
+  const { t, lang } = useI18n()
   const { member, company } = useAuth()
   const toast = useToast()
   const tz = company?.timezone || 'Asia/Tashkent'
   const [today, setToday] = useState(null)
+  const [month, setMonth] = useState(null)
   const [loadErr, setLoadErr] = useState(null)
   const [clock, setClock] = useState(nowTimeIn(tz))
-  const [phase, setPhase] = useState('idle') // idle | locating | camera | sending
+  const [phase, setPhase] = useState('idle') // idle | locating | camera | face | sending
   const [action, setAction] = useState(null) // 'in' | 'out'
   const [pos, setPos] = useState(null)
   const [error, setError] = useState(null)
@@ -55,9 +39,12 @@ export default function CheckIn() {
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc('my_today')
-    if (error) setLoadErr(errorText(error, t))
-    else { setToday(data); setLoadErr(null) }
-  }, [t])
+    if (error) return setLoadErr(errorText(error, t))
+    setToday(data)
+    setLoadErr(null)
+    const rep = await supabase.rpc('month_report', { p_month: monthStart(data.date) })
+    setMonth((rep.data || []).find((r) => r.member_id === member.id) || null)
+  }, [t, member.id])
 
   useEffect(() => { load() }, [load])
   const faceRequired = Boolean(today?.face?.required)
@@ -67,7 +54,7 @@ export default function CheckIn() {
     return () => clearInterval(id)
   }, [tz])
 
-  if (loadErr) return <Alert kind="error">{loadErr}</Alert>
+  if (loadErr) return <div className="today-body" style={{ paddingTop: 16 }}><Alert kind="error">{loadErr}</Alert></div>
   if (!today) return <Spinner />
 
   const office = today.office
@@ -75,6 +62,8 @@ export default function CheckIn() {
   const s = today.schedule
   const checkedIn = Boolean(att?.check_in_at)
   const checkedOut = Boolean(att?.check_out_at)
+  const needsFace = today.face?.required && !today.face.enrolled
+  const busy = ['locating', 'face', 'sending'].includes(phase)
 
   const locate = async () => {
     const c = await getPosition()
@@ -82,6 +71,11 @@ export default function CheckIn() {
     p.distance = office.lat != null ? distanceM(office.lat, office.lng, p.latitude, p.longitude) : null
     setPos(p)
     return p
+  }
+
+  const checkLocation = async () => {
+    setError(null)
+    try { await locate() } catch (e) { setError(errorText(e, t)) }
   }
 
   const start = async (kind) => {
@@ -98,7 +92,6 @@ export default function CheckIn() {
         if (office.require_selfie) return setPhase('camera')
         return send('in', p, null)
       }
-      // Erta ketishni tasdiqlash
       if (today.is_workday && s.work_end && clock < hhmm(s.work_end)) {
         setPhase('idle')
         return setConfirmEarly(p)
@@ -142,80 +135,94 @@ export default function CheckIn() {
     setPhase('idle')
   }
 
-  const ringState = phase === 'locating' ? 'locating'
-    : error && pos && pos.distance > office.radius_m ? 'out'
-    : checkedOut ? 'done' : checkedIn ? 'in' : 'idle'
+  // Holat: ekran rangi va xabar
+  const nowM = toMin(clock)
+  const ws = toMin(s.work_start)
+  const we = toMin(s.work_end)
+  const graceEnd = ws + (s.grace_minutes || 0)
+  let state, msg
+  if (checkedOut) { state = 'done'; msg = t('today.done_msg', { d: fmtMinutes(att.worked_minutes ?? 0, t) }) }
+  else if (checkedIn) {
+    state = att.status === 'late' ? 'late' : 'ontime'
+    msg = att.status === 'late' ? t('today.late_msg', { n: att.late_minutes }) : t('today.ontime_msg')
+  } else if (!today.is_workday) { state = 'off'; msg = today.holiday ? t('checkin.holiday', { name: today.holiday }) : t('checkin.day_off') }
+  else if (nowM < ws) { state = 'before'; msg = t('today.starts_in', { d: fmtMinutes(ws - nowM, t) }) }
+  else if (nowM <= graceEnd) { state = 'before'; msg = t('today.grace_left', { time: fromMin(graceEnd) }) }
+  else if (nowM <= we) { state = 'missing'; msg = t('today.late_now', { d: fmtMinutes(nowM - ws, t) }) }
+  else { state = 'missing'; msg = t('today.not_checked') }
+
+  const inside = pos && pos.distance != null && pos.distance <= office.radius_m
+  const busyLabel = phase === 'locating' ? t('checkin.locating') : phase === 'face' ? t('face.checking') : t('today.sending')
 
   return (
-    <div className="checkin">
-      <div className="checkin-head">
-        <div>
-          <p className="muted">{fmtDate(today.date)}</p>
-          <h1>{t('checkin.hello', { name: member.full_name.split(' ')[0] })}</h1>
+    <div className={cls('today', embedded && 'today-embedded')}>
+      <section className={`hero hero-${state}`}>
+        <div className="hero-top">
+          <span className="hero-company">{company?.name}</span>
+          {!embedded && <LangSwitch />}
         </div>
-        <span className="checkin-clock">{clock}</span>
-      </div>
+        <div className="hero-date">{longDate(today.date, lang)}</div>
+        <div className="hero-clock">{clock}</div>
+        <div className="hero-msg">{msg}</div>
+        <div className="hero-chips">
+          {checkedIn && <span className="chip">{t('today.came_at', { time: fmtTime(att.check_in_at, tz) })}</span>}
+          {checkedOut && <span className="chip">{t('today.left_at', { time: fmtTime(att.check_out_at, tz) })}</span>}
+          {!checkedOut && office.lat != null && (
+            pos ? (
+              <button className={cls('chip', !inside && 'chip-bad')} onClick={checkLocation}>
+                {inside && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>}
+                {inside ? t('today.in_office', { n: Math.round(pos.distance) }) : t('today.far', { d: fmtDist(pos.distance) })}
+              </button>
+            ) : (
+              <button className="chip" onClick={checkLocation}>{t('today.check_location')}</button>
+            )
+          )}
+          {pos && pos.accuracy != null && !checkedOut && <span className="chip">{t('today.gps', { n: Math.round(pos.accuracy) })}</span>}
+        </div>
+      </section>
 
-      {office.lat == null && <Alert kind="warn">{t('checkin.no_office')}</Alert>}
-
-      <GeoRing office={office} pos={pos} state={ringState} label={t('checkin.office')} />
-
-      <div className="checkin-status">
-        {!today.is_workday && !checkedIn && (
-          <p className="muted">{today.holiday ? t('checkin.holiday', { name: today.holiday }) : t('checkin.day_off')}</p>
+      <div className="today-body">
+        {office.lat == null && <Alert kind="warn">{t('checkin.no_office')}</Alert>}
+        {error && (
+          <Alert kind="error" action={action && <Button variant="ghost" size="sm" onClick={() => start(action)}>{t('common.retry')}</Button>}>
+            {error}
+          </Alert>
         )}
-        {today.is_workday && !checkedIn && (
-          <p>{t('checkin.starts_at', { time: hhmm(s.work_start), grace: s.grace_minutes })}</p>
-        )}
-        {checkedIn && (
-          <div className="checkin-facts">
-            <div><span className="muted">{t('checkin.came')}</span><b>{fmtTime(att.check_in_at, tz)}</b></div>
-            <div><span className="muted">{t('checkin.left')}</span><b>{checkedOut ? fmtTime(att.check_out_at, tz) : '—'}</b></div>
-            <div><span className="muted">{t('checkin.status')}</span><StatusBadge status={att.status} minutes={att.late_minutes} /></div>
-            {checkedOut && <div><span className="muted">{t('checkin.worked')}</span><b>{fmtMinutes(att.worked_minutes, t)}</b></div>}
+        {!checkedIn && needsFace && <FaceEnroll onDone={load} />}
+
+        <section className="timeline-card">
+          <h2>{t('today.timeline')}</h2>
+          <DayTimeline
+            schedule={s}
+            now={checkedOut ? null : clock}
+            checkIn={att?.check_in_at ? fmtTime(att.check_in_at, tz) : null}
+            checkInLate={att?.status === 'late'}
+            checkOut={att?.check_out_at ? fmtTime(att.check_out_at, tz) : null}
+          />
+        </section>
+
+        {month && (
+          <div className="mini-tiles">
+            <div className="mini-tile"><span>{t('today.month_label')}</span><b>{month.on_time_days} <small>{t('today.days_ontime')}</small></b></div>
+            <div className="mini-tile"><span>{t('today.late_total')}</span><b style={{ color: month.late_minutes ? 'var(--saffron-ink)' : undefined }}>{month.late_minutes} <small>{t('today.minutes')}</small></b></div>
           </div>
         )}
-        {pos && (
-          <p className="muted small">
-            {t('checkin.distance', { n: Math.round(pos.distance ?? 0), r: office.radius_m })}
-            {pos.accuracy ? ` (±${Math.round(pos.accuracy)} m)` : ''}
-          </p>
-        )}
       </div>
 
-      {error && (
-        <Alert kind="error" action={<Button variant="ghost" size="sm" onClick={() => start(action)}>{t('common.retry')}</Button>}>
-          {error}
-        </Alert>
-      )}
-
-      {!checkedIn && today.face?.required && !today.face.enrolled && <FaceEnroll onDone={load} />}
-
-      <div className="checkin-actions">
-        {!checkedIn && !(today.face?.required && !today.face.enrolled) && (
-          <Button size="xl" onClick={() => start('in')} loading={['locating', 'face', 'sending'].includes(phase)} disabled={office.lat == null}>
-            {phase === 'locating' ? t('checkin.locating') : phase === 'face' ? t('face.checking') : t('checkin.btn_in')}
-          </Button>
+      <div className="today-actions">
+        {!checkedIn && !needsFace && (
+          <>
+            <SlideConfirm label={t('today.slide_in')} busyLabel={busyLabel} loading={busy} disabled={office.lat == null} onConfirm={() => start('in')} />
+            <p className="slide-hint">{office.require_selfie ? t('today.hint_selfie') : t('today.hint_gps')}</p>
+          </>
         )}
         {checkedIn && !checkedOut && (
-          <Button size="xl" variant="secondary" onClick={() => start('out')} loading={phase === 'locating' || phase === 'sending'}>
-            {phase === 'locating' ? t('checkin.locating') : t('checkin.btn_out')}
-          </Button>
+          <SlideConfirm light label={t('today.slide_out')} busyLabel={busyLabel} loading={busy} onConfirm={() => start('out')} />
         )}
         {checkedOut && <p className="done-note">{t('checkin.day_done')}</p>}
       </div>
 
-      <dl className="schedule-strip">
-        <div><dt>{t('sched.work')}</dt><dd>{hhmm(s.work_start)}–{hhmm(s.work_end)}</dd></div>
-        {s.break_start && s.break_end && <div><dt>{t('sched.break')}</dt><dd>{hhmm(s.break_start)}–{hhmm(s.break_end)}</dd></div>}
-        <div><dt>{t('sched.grace')}</dt><dd>{t('unit.min', { n: s.grace_minutes })}</dd></div>
-      </dl>
-
-      <CameraCapture
-        open={phase === 'camera'}
-        onClose={() => setPhase('idle')}
-        onCapture={(blob) => send('in', pos, blob)}
-      />
+      <CameraCapture open={phase === 'camera'} onClose={() => setPhase('idle')} onCapture={(blob) => send('in', pos, blob)} />
 
       <Modal
         open={Boolean(confirmEarly)}

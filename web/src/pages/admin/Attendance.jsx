@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
 import { Alert, Button, Empty, FaceBadge, Field, Modal, PageHeader, Spinner, StatusBadge, Tabs, useToast, useConfirm } from '../../components/ui.jsx'
 import { exportXlsx } from '../../lib/excel.js'
+import { fromMin, toMin } from '../../components/DayTimeline.jsx'
 import { cls, errorText, fmtDate, fmtMinutes, fmtTime, todayIn } from '../../lib/utils.js'
 
 export default function Attendance() {
@@ -80,7 +81,12 @@ function Daily() {
       </div>
       {error && <Alert kind="error">{error}</Alert>}
       {!rows ? <Spinner /> : rows.length === 0 ? <Empty title={t('att.no_employees')} /> : (
-        <div className="table-wrap">
+        <>
+        <section className="panel only-mobile">
+          <h2>{t('att.who_when')}</h2>
+          <Arrivals rows={rows} tz={tz} onOpen={(r) => r.status !== 'future' && setEdit(r)} />
+        </section>
+        <div className="table-wrap only-desktop">
           <table className="table">
             <thead>
               <tr>
@@ -117,8 +123,14 @@ function Daily() {
             </tbody>
           </table>
         </div>
+        </>
       )}
-      {edit && <EditRecord row={edit} date={date} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+      {edit && (
+        <EditRecord
+          row={edit} date={date} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }}
+          selfie={urls[edit.check_in_selfie]} reference={urls[refs[edit.member_id]]}
+        />
+      )}
       <Modal open={Boolean(photo)} onClose={() => setPhoto(null)} title={photo?.full_name || ''} wide={Boolean(photo?.ref)}>
         {photo && (
           photo.ref ? (
@@ -136,7 +148,70 @@ function Daily() {
   )
 }
 
-function EditRecord({ row, date, onClose, onSaved }) {
+const ARR_ORDER = { present: 0, late: 0, not_yet: 1, absent: 2, excused: 3, holiday: 4, off: 5, future: 6 }
+
+// Telefonda: kim qachon keldi — har bir xodim uchun ish boshlanishi atrofidagi shkala
+function Arrivals({ rows, tz, onOpen }) {
+  const { t } = useI18n()
+  const starts = rows.map((r) => toMin(r.work_start)).filter((v) => v != null)
+  const minS = starts.length ? Math.min(...starts) : 540
+  const maxS = starts.length ? Math.max(...starts) : 540
+  let from = minS - 60
+  let to = maxS + 60
+  for (const r of rows) {
+    if (!r.check_in_at) continue
+    const m = toMin(fmtTime(r.check_in_at, tz))
+    from = Math.min(from, Math.floor(m / 30) * 30)
+    to = Math.max(to, Math.min(maxS + 240, Math.ceil(m / 30) * 30))
+  }
+  const span = to - from
+  const pct = (m) => ((Math.min(to, Math.max(from, m)) - from) / span) * 100
+  const sorted = [...rows].sort((a, b) => {
+    const d = ARR_ORDER[a.status] - ARR_ORDER[b.status]
+    if (d) return d
+    if (a.check_in_at && b.check_in_at) return a.check_in_at.localeCompare(b.check_in_at)
+    return a.full_name.localeCompare(b.full_name)
+  })
+  const short = (name) => { const [f, l] = name.split(' '); return l ? `${f} ${l[0]}.` : f }
+
+  return (
+    <div className="arrivals">
+      <p className="muted small" style={{ margin: '0 0 6px' }}>{t('att.who_when_hint')}</p>
+      <div className="arr-axis" aria-hidden="true">
+        <span />
+        <div className="tl-axis">
+          <span style={{ left: '0%' }}>{fromMin(from)}</span>
+          <span style={{ left: `${pct(minS)}%` }}>{fromMin(minS)}</span>
+          <span style={{ left: '100%' }}>{fromMin(to)}</span>
+        </div>
+      </div>
+      {sorted.map((r) => {
+        const ws = toMin(r.work_start)
+        const inM = r.check_in_at ? toMin(fmtTime(r.check_in_at, tz)) : null
+        const flagged = r.face_status === 'mismatch' || r.face_status === 'no_face'
+        return (
+          <button key={r.member_id} className="arr-row" onClick={() => onOpen(r)} aria-label={`${r.full_name}: ${t('status.' + r.status)}${inM != null ? ', ' + fromMin(inM) : ''}`}>
+            <span className="arr-name">{short(r.full_name)}{flagged && <span className="arr-flag" title={t('face.mismatch')}>!</span>}</span>
+            {inM != null ? (
+              <span className="arr-bar">
+                <span className="arr-start" style={{ left: `${pct(ws)}%` }} />
+                {r.status === 'late' && <span className="arr-late-seg" style={{ left: `${pct(ws)}%`, width: `${pct(inM) - pct(ws)}%` }} />}
+                <span className="arr-dot" style={{ left: `${pct(inM)}%`, background: r.status === 'late' ? 'var(--saffron)' : 'var(--firuza)' }} />
+                <span className="arr-time" style={pct(inM) > 55 ? { left: 10, color: r.status === 'late' ? 'var(--saffron-ink)' : 'var(--firuza-700)' } : { right: 10, color: r.status === 'late' ? 'var(--saffron-ink)' : 'var(--firuza-700)' }}>
+                  {fromMin(inM)}{r.status === 'late' ? ` (+${r.late_minutes})` : ''}
+                </span>
+              </span>
+            ) : (
+              <span className={`arr-state st-${r.status}`}>{t('status.' + r.status)}{r.note ? `: ${r.note}` : ''}</span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function EditRecord({ row, date, onClose, onSaved, selfie, reference }) {
   const { t } = useI18n()
   const { company, member } = useAuth()
   const toast = useToast()
@@ -191,6 +266,17 @@ function EditRecord({ row, date, onClose, onSaved }) {
       }
     >
       <div className="stack">
+        {selfie && (
+          reference ? (
+            <div className="stack">
+              <div className="face-compare">
+                <figure><img src={reference} alt="" /><figcaption>{t('face.reference')}</figcaption></figure>
+                <figure><img src={selfie} alt="" /><figcaption>{t('face.checkin_photo')}, {fmtTime(row.check_in_at, company.timezone)}</figcaption></figure>
+              </div>
+              <div><FaceBadge status={row.face_status} distance={row.face_distance} /></div>
+            </div>
+          ) : <img src={selfie} alt="" className="photo-full" style={{ maxHeight: 260, objectFit: 'cover' }} />
+        )}
         <Field label={t('col.status')}>
           <select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>
             {['present', 'late', 'excused', 'absent'].map((s) => <option key={s} value={s}>{t('status.' + s)}</option>)}

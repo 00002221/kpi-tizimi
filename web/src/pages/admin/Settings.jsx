@@ -1,9 +1,11 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n, LANGS } from '../../i18n/index.jsx'
 import { Alert, Button, Field, PageHeader, Spinner, Toggle, useToast, useConfirm } from '../../components/ui.jsx'
 import { errorText, fmtDate, getPosition, hhmm } from '../../lib/utils.js'
+import TimeInput from '../../components/TimeInput.jsx'
+import DayTimeline from '../../components/DayTimeline.jsx'
 
 const MapPicker = lazy(() => import('../../components/MapPicker.jsx'))
 
@@ -14,7 +16,7 @@ export function WeekdayPicker({ value = [], onChange }) {
   const names = t('cal.weekdays').split(',')
   const toggle = (d) => onChange(value.includes(d) ? value.filter((x) => x !== d) : [...value, d].sort())
   return (
-    <div className="seg seg-days">
+    <div className="days7">
       {names.map((n, i) => (
         <button type="button" key={n} aria-pressed={value.includes(i + 1)} onClick={() => toggle(i + 1)}>{n}</button>
       ))}
@@ -39,7 +41,11 @@ export default function Settings() {
   const { t } = useI18n()
   const { company, refresh } = useAuth()
   const toast = useToast()
-  const [f, setF] = useState(() => pickCompany(company))
+  const initial = useMemo(() => pickCompany(company), [company])
+  const [f, setF] = useState(initial)
+  useEffect(() => setF(initial), [initial])
+  const same = (a, b) => (Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a) === JSON.stringify(b) : String(a ?? '') === String(b ?? ''))
+  const changed = Object.keys(initial).filter((k) => !same(initial[k], f[k])).length
   const [busy, setBusy] = useState(false)
   const [locBusy, setLocBusy] = useState(false)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
@@ -84,9 +90,7 @@ export default function Settings() {
 
   return (
     <div className="stack-lg settings">
-      <PageHeader title={t('nav.settings')}>
-        <Button onClick={save} loading={busy}>{t('set.save_all')}</Button>
-      </PageHeader>
+      <PageHeader title={t('nav.settings')} />
 
       <section className="panel">
         <h2>{t('set.company')}</h2>
@@ -135,15 +139,33 @@ export default function Settings() {
 
       <section className="panel">
         <h2>{t('set.schedule')}</h2>
-        <p className="muted">{t('set.schedule_hint')}</p>
-        <div className="form-grid">
-          <Field label={t('set.work_start')}><input type="time" value={f.work_start} onChange={set('work_start')} /></Field>
-          <Field label={t('set.work_end')}><input type="time" value={f.work_end} onChange={set('work_end')} /></Field>
-          <Field label={t('set.grace')} hint={t('set.grace_hint')}><input type="number" min="0" max="240" value={f.grace_minutes} onChange={set('grace_minutes')} /></Field>
-          <Field label={t('set.break_start')}><input type="time" value={f.break_start} onChange={set('break_start')} /></Field>
-          <Field label={t('set.break_end')}><input type="time" value={f.break_end} onChange={set('break_end')} /></Field>
+        <div className="stack">
+          <div className="presets" role="group" aria-label={t('set.presets')}>
+            {[['09:00', '18:00'], ['08:00', '17:00'], ['10:00', '19:00']].map(([a, b]) => (
+              <button key={a} type="button" className="preset" aria-pressed={f.work_start === a && f.work_end === b}
+                onClick={() => setF({ ...f, work_start: a, work_end: b })}>{a}–{b}</button>
+            ))}
+          </div>
+          <DayTimeline schedule={{ work_start: f.work_start, work_end: f.work_end, grace_minutes: Number(f.grace_minutes) || 0, break_start: f.break_start || null, break_end: f.break_end || null }} />
+          <div className="time-pair">
+            <Field label={t('set.work_start')}><TimeInput value={f.work_start} onChange={(v) => setV('work_start', v)} /></Field>
+            <Field label={t('set.work_end')}><TimeInput value={f.work_end} onChange={(v) => setV('work_end', v)} /></Field>
+          </div>
+          <label className="field">
+            <span className="grace-row"><span className="field-label">{t('set.grace')}</span><b>{t('unit.min', { n: f.grace_minutes || 0 })}</b></span>
+            <input type="range" min="0" max="60" step="1" value={f.grace_minutes || 0} onChange={set('grace_minutes')} />
+            <span className="field-hint">{t('set.grace_hint')}</span>
+          </label>
+          <Toggle checked={Boolean(f.break_start)} onChange={(v) => setF({ ...f, break_start: v ? '13:00' : '', break_end: v ? '14:00' : '' })} label={t('set.has_break')} />
+          {f.break_start && (
+            <div className="time-pair">
+              <Field label={t('set.break_start')}><TimeInput value={f.break_start} onChange={(v) => setV('break_start', v)} /></Field>
+              <Field label={t('set.break_end')}><TimeInput value={f.break_end} onChange={(v) => setV('break_end', v)} /></Field>
+            </div>
+          )}
+          <Field label={t('set.work_days')}><WeekdayPicker value={f.work_days} onChange={(v) => setV('work_days', v)} /></Field>
+          <p className="muted small">{t('set.schedule_hint')}</p>
         </div>
-        <Field label={t('set.work_days')}><WeekdayPicker value={f.work_days} onChange={(v) => setV('work_days', v)} /></Field>
       </section>
 
       <section className="panel">
@@ -175,9 +197,15 @@ export default function Settings() {
         </div>
       </section>
 
-      <div className="row-end">
-        <Button onClick={save} loading={busy} size="lg">{t('set.save_all')}</Button>
-      </div>
+      {changed > 0 && (
+        <div className="save-bar" role="status">
+          <span>{t('set.unsaved', { n: changed })}</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Button variant="ghost" onClick={() => setF(initial)}>{t('common.cancel')}</Button>
+            <Button onClick={save} loading={busy}>{t('common.save')}</Button>
+          </div>
+        </div>
+      )}
 
       <TelegramSettings />
       <Holidays />
@@ -246,7 +274,7 @@ function TelegramSettings() {
         <Toggle checked={f.daily_summary} onChange={(v) => set('daily_summary', v)} label={t('tg.daily_summary')} hint={t('tg.daily_summary_hint')} />
         {f.daily_summary && (
           <Field className="field-inline" label={t('tg.summary_time')}>
-            <input type="time" value={hhmm(f.summary_time)} onChange={(e) => set('summary_time', e.target.value)} />
+            <TimeInput value={hhmm(f.summary_time)} onChange={(v) => set('summary_time', v)} style={{ width: 110 }} />
           </Field>
         )}
       </div>
