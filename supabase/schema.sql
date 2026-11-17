@@ -1080,3 +1080,6 @@ do $$ begin
 exception when others then
   raise notice 'pg_cron sozlanmadi: %', sqlerrm;
 end $$;
+
+-- PostgREST (API) funksiyalar ro'yxatini yangilasin
+notify pgrst, 'reload schema';
