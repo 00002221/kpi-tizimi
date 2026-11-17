@@ -199,3 +199,17 @@ export function ConfirmProvider({ children }) {
 }
 
 export const useConfirm = () => useContext(ConfirmCtx)
+
+// Yuz tekshiruvi natijasi
+export function FaceBadge({ status, distance }) {
+  const { t } = useI18n()
+  if (!status) return null
+  const pct = distance == null ? null : Math.max(0, Math.round((1 - distance) * 100))
+  const cls_ = status === 'match' ? 'face-ok' : 'face-bad'
+  return (
+    <span className={cls('badge', cls_)} title={pct != null ? t('face.similarity', { n: pct }) : undefined}>
+      <span className="badge-icon" aria-hidden="true">{status === 'match' ? '☺' : '⚠'}</span>
+      {t('face.' + status)}{pct != null ? ` ${pct}%` : ''}
+    </span>
+  )
+}

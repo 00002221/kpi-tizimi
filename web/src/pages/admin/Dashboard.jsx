@@ -70,6 +70,7 @@ export default function Dashboard() {
     { key: 'absent', label: t('dash.not_here'), value: count('absent') + count('not_yet') },
     { key: 'excused', label: t('status.excused'), value: count('excused') },
   ]
+  const faceFlags = d.today.filter((r) => r.face_status === 'mismatch' || r.face_status === 'no_face').length
   const issues = exp.filter((r) => ['late', 'absent', 'not_yet'].includes(r.status))
     .sort((a, b) => (a.status === b.status ? 0 : a.status === 'late' ? 1 : -1))
 
@@ -84,6 +85,9 @@ export default function Dashboard() {
 
       {company.office_lat == null && (
         <Alert kind="warn" action={<Link className="btn btn-sm btn-primary" to="/settings">{t('nav.settings')}</Link>}>{t('dash.no_office')}</Alert>
+      )}
+      {faceFlags > 0 && (
+        <Alert kind="warn" action={<Link className="btn btn-sm btn-primary" to="/attendance">{t('dash.check')}</Link>}>{t('dash.face_flags', { n: faceFlags })}</Alert>
       )}
       {d.pending > 0 && (
         <Alert kind="info" action={<Link className="btn btn-sm btn-primary" to="/employees">{t('dash.review')}</Link>}>{t('dash.pending', { n: d.pending })}</Alert>

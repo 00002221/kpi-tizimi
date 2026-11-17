@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import FaceEnroll from '../../components/FaceEnroll.jsx'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
@@ -65,6 +66,9 @@ export function Pending() {
   const { t } = useI18n()
   const { company, refresh, signOut } = useAuth()
   const [busy, setBusy] = useState(false)
+  const [face, setFace] = useState(null)
+  const loadFace = () => supabase.rpc('my_face_status').then(({ data }) => setFace(data || {}))
+  useEffect(() => { loadFace() }, [])
   const check = async () => { setBusy(true); await refresh(); setBusy(false) }
   const leave = async () => { await supabase.rpc('leave_pending'); refresh() }
   return (
@@ -73,7 +77,11 @@ export function Pending() {
       footer={<><button className="link-btn" onClick={leave}>{t('pending.other_code')}</button><button className="link-btn" onClick={signOut}>{t('common.logout')}</button></>}
     >
       <p>{t('pending.text', { company: company?.name || '' })}</p>
-      <Button onClick={check} loading={busy} variant="secondary">{t('pending.check')}</Button>
+      {face?.required && !face.enrolled ? (
+        <FaceEnroll onDone={loadFace} />
+      ) : (
+        <Button onClick={check} loading={busy} variant="secondary">{t('pending.check')}</Button>
+      )}
     </AuthLayout>
   )
 }

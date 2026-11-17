@@ -415,3 +415,21 @@ input[type="range"]:focus { box-shadow: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ===== Yuz tekshiruvi ===== */
+.face-ok { background: var(--firuza-50); color: var(--firuza-700); }
+.face-bad { background: var(--pom-50); color: var(--pom-ink); }
+.selfie-cell { display: flex; align-items: center; gap: 8px; }
+.person-cell { display: flex; align-items: center; gap: 10px; }
+.thumb-empty { display: inline-grid; place-items: center; background: var(--paper); border: 2px dashed var(--line-2); color: var(--muted); font-weight: 700; font-size: 13px; }
+.face-enroll { display: flex; flex-direction: column; gap: 12px; border-left: 4px solid var(--firuza); }
+.face-enroll h2 { margin-bottom: 0; }
+.consent { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45; cursor: pointer; }
+.consent input { width: 20px; height: 20px; flex: none; margin-top: 1px; accent-color: var(--lapis); }
+.face-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.face-compare figure { margin: 0; }
+.face-compare img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; display: block; }
+.face-compare figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; text-align: center; }
+.face-section { display: flex; flex-direction: column; gap: 8px; }
+.face-row { display: flex; gap: 14px; align-items: center; }
+.face-ref { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; border: 3px solid var(--firuza-50); }

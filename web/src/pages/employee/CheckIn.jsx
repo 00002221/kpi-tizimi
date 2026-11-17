@@ -4,6 +4,8 @@ import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
 import { Alert, Button, Modal, Spinner, StatusBadge, useToast } from '../../components/ui.jsx'
 import CameraCapture from '../../components/CameraCapture.jsx'
+import FaceEnroll from '../../components/FaceEnroll.jsx'
+import { faceDescriptor, loadFaceModels } from '../../lib/face.js'
 import { distanceM, errorText, fmtDate, fmtMinutes, fmtTime, getPosition, hhmm, nowTimeIn, offsetM } from '../../lib/utils.js'
 
 // Ishxona hududi: markazda ofis, aylana — ruxsat etilgan radius, nuqta — siz
@@ -58,6 +60,8 @@ export default function CheckIn() {
   }, [t])
 
   useEffect(() => { load() }, [load])
+  const faceRequired = Boolean(today?.face?.required)
+  useEffect(() => { if (faceRequired) loadFaceModels().catch(() => {}) }, [faceRequired])
   useEffect(() => {
     const id = setInterval(() => setClock(nowTimeIn(tz)), 1000 * 15)
     return () => clearInterval(id)
@@ -110,17 +114,24 @@ export default function CheckIn() {
     setPhase('sending')
     try {
       let selfiePath = null
+      let face = null
+      if (kind === 'in' && blob && today.face?.required) {
+        setPhase('face')
+        try { face = await faceDescriptor(blob) } catch { face = null } // model yuklanmasa — "shubhali" bo'ladi
+        setPhase('sending')
+      }
       if (kind === 'in' && blob) {
         selfiePath = `${member.company_id}/${member.user_id}/${today.date}-${Date.now()}.jpg`
         const up = await supabase.storage.from('selfies').upload(selfiePath, blob, { contentType: 'image/jpeg' })
         if (up.error) throw up.error
       }
       const { data, error } = kind === 'in'
-        ? await supabase.rpc('check_in', { p_lat: p.latitude, p_lng: p.longitude, p_accuracy: p.accuracy, p_selfie: selfiePath })
+        ? await supabase.rpc('check_in', { p_lat: p.latitude, p_lng: p.longitude, p_accuracy: p.accuracy, p_selfie: selfiePath, p_face: face })
         : await supabase.rpc('check_out', { p_lat: p.latitude, p_lng: p.longitude, p_accuracy: p.accuracy })
       if (error) throw error
       if (kind === 'in') {
         toast(data.status === 'late' ? t('checkin.done_late', { n: data.late_minutes }) : t('checkin.done_ok'), data.status === 'late' ? 'warn' : 'ok')
+        if (data.face_status === 'mismatch' || data.face_status === 'no_face') toast(t('face.flagged'), 'warn')
       } else {
         toast(t('checkout.done'))
       }
@@ -178,10 +189,12 @@ export default function CheckIn() {
         </Alert>
       )}
 
+      {!checkedIn && today.face?.required && !today.face.enrolled && <FaceEnroll onDone={load} />}
+
       <div className="checkin-actions">
-        {!checkedIn && (
-          <Button size="xl" onClick={() => start('in')} loading={phase === 'locating' || phase === 'sending'} disabled={office.lat == null}>
-            {phase === 'locating' ? t('checkin.locating') : t('checkin.btn_in')}
+        {!checkedIn && !(today.face?.required && !today.face.enrolled) && (
+          <Button size="xl" onClick={() => start('in')} loading={['locating', 'face', 'sending'].includes(phase)} disabled={office.lat == null}>
+            {phase === 'locating' ? t('checkin.locating') : phase === 'face' ? t('face.checking') : t('checkin.btn_in')}
           </Button>
         )}
         {checkedIn && !checkedOut && (

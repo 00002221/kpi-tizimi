@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
-import { Alert, Button, Empty, Field, Modal, PageHeader, Spinner, StatusBadge, Tabs, useToast, useConfirm } from '../../components/ui.jsx'
+import { Alert, Button, Empty, FaceBadge, Field, Modal, PageHeader, Spinner, StatusBadge, Tabs, useToast, useConfirm } from '../../components/ui.jsx'
 import { exportXlsx } from '../../lib/excel.js'
 import { cls, errorText, fmtDate, fmtMinutes, fmtTime, todayIn } from '../../lib/utils.js'
 
@@ -31,6 +31,7 @@ function Daily() {
   const [date, setDate] = useState(today)
   const [rows, setRows] = useState(null)
   const [urls, setUrls] = useState({})
+  const [refs, setRefs] = useState({}) // member_id -> yuz namunasi rasmi
   const [error, setError] = useState(null)
   const [edit, setEdit] = useState(null)
   const [photo, setPhoto] = useState(null)
@@ -42,12 +43,14 @@ function Daily() {
     setError(null)
     const sorted = [...data].sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.full_name.localeCompare(b.full_name))
     setRows(sorted)
-    const paths = sorted.map((r) => r.check_in_selfie).filter(Boolean)
+    const { data: profiles } = await supabase.from('face_profiles').select('member_id, photo_path').eq('company_id', company.id)
+    setRefs(Object.fromEntries((profiles || []).map((p) => [p.member_id, p.photo_path])))
+    const paths = [...sorted.map((r) => r.check_in_selfie), ...(profiles || []).map((p) => p.photo_path)].filter(Boolean)
     if (paths.length) {
       const { data: signed } = await supabase.storage.from('selfies').createSignedUrls(paths, 3600)
       setUrls(Object.fromEntries((signed || []).filter((s) => s.signedUrl).map((s) => [s.path, s.signedUrl])))
     } else setUrls({})
-  }, [date, t])
+  }, [date, t, company.id])
   useEffect(() => { load() }, [load])
 
   const doExport = () => exportXlsx(`davomat-${date}`, [{
@@ -98,9 +101,12 @@ function Daily() {
                   <td className="num">{r.check_in_distance != null ? `${r.check_in_distance} m` : '—'}</td>
                   <td>
                     {urls[r.check_in_selfie] ? (
-                      <button className="thumb-btn" onClick={() => setPhoto({ url: urls[r.check_in_selfie], name: r.full_name })}>
-                        <img src={urls[r.check_in_selfie]} alt={r.full_name} className="thumb" />
-                      </button>
+                      <div className="selfie-cell">
+                        <button className="thumb-btn" onClick={() => setPhoto({ ...r, url: urls[r.check_in_selfie], ref: urls[refs[r.member_id]] })}>
+                          <img src={urls[r.check_in_selfie]} alt={r.full_name} className="thumb" />
+                        </button>
+                        <FaceBadge status={r.face_status} distance={r.face_distance} />
+                      </div>
                     ) : '—'}
                   </td>
                   <td className="num">
@@ -113,8 +119,18 @@ function Daily() {
         </div>
       )}
       {edit && <EditRecord row={edit} date={date} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
-      <Modal open={Boolean(photo)} onClose={() => setPhoto(null)} title={photo?.name || ''}>
-        {photo && <img src={photo.url} alt={photo.name} className="photo-full" />}
+      <Modal open={Boolean(photo)} onClose={() => setPhoto(null)} title={photo?.full_name || ''} wide={Boolean(photo?.ref)}>
+        {photo && (
+          photo.ref ? (
+            <div className="stack">
+              <div className="face-compare">
+                <figure><img src={photo.ref} alt="" /><figcaption>{t('face.reference')}</figcaption></figure>
+                <figure><img src={photo.url} alt="" /><figcaption>{t('face.checkin_photo')}, {fmtTime(photo.check_in_at, tz)}</figcaption></figure>
+              </div>
+              <div><FaceBadge status={photo.face_status} distance={photo.face_distance} /></div>
+            </div>
+          ) : <img src={photo.url} alt={photo.full_name} className="photo-full" />
+        )}
       </Modal>
     </>
   )

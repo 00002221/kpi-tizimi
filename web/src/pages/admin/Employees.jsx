@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
@@ -40,6 +40,16 @@ export default function Employees() {
   const { members, error, reload } = useMembers()
   const [tab, setTab] = useState('active')
   const [edit, setEdit] = useState(null)
+  const [faces, setFaces] = useState({}) // member_id -> { url, enrolled_at }
+
+  const loadFaces = useCallback(async () => {
+    const { data } = await supabase.from('face_profiles').select('member_id, photo_path, enrolled_at').eq('company_id', company.id)
+    if (!data?.length) return setFaces({})
+    const { data: signed } = await supabase.storage.from('selfies').createSignedUrls(data.map((f) => f.photo_path), 3600)
+    const byPath = Object.fromEntries((signed || []).map((s) => [s.path, s.signedUrl]))
+    setFaces(Object.fromEntries(data.map((f) => [f.member_id, { url: byPath[f.photo_path], enrolled_at: f.enrolled_at }])))
+  }, [company.id])
+  useEffect(() => { loadFaces() }, [loadFaces])
 
   if (!members) return <Spinner />
   const groups = {
@@ -88,8 +98,13 @@ export default function Employees() {
               {list.map((m) => (
                 <tr key={m.id}>
                   <td>
-                    <div className="cell-name">{m.full_name}{m.id === me.id ? ` (${t('emp.you')})` : ''}</div>
-                    <div className="muted small">{m.position || '—'}</div>
+                    <div className="person-cell">
+                      {faces[m.id]?.url ? <img src={faces[m.id].url} alt="" className="thumb" /> : company.face_check ? <span className="thumb thumb-empty" title={t('face.none')}>?</span> : null}
+                      <div>
+                        <div className="cell-name">{m.full_name}{m.id === me.id ? ` (${t('emp.you')})` : ''}</div>
+                        <div className="muted small">{m.position || '—'}</div>
+                      </div>
+                    </div>
                   </td>
                   <td><div>{m.phone || '—'}</div><div className="muted small">{m.email}</div></td>
                   <td>
@@ -121,6 +136,8 @@ export default function Employees() {
       {edit && (
         <EditMember
           m={edit}
+          face={faces[edit.id]}
+          onFaceReset={loadFaces}
           onClose={() => setEdit(null)}
           onSaved={() => { setEdit(null); reload(); if (edit.id === me.id) refreshMe() }}
         />
@@ -129,7 +146,7 @@ export default function Employees() {
   )
 }
 
-function EditMember({ m, onClose, onSaved }) {
+function EditMember({ m, face, onFaceReset, onClose, onSaved }) {
   const { t } = useI18n()
   const { company, member: me } = useAuth()
   const toast = useToast()
@@ -167,6 +184,14 @@ function EditMember({ m, onClose, onSaved }) {
     if (error) return toast(errorText(error, t), 'error')
     toast(t('common.saved'))
     onSaved()
+  }
+
+  const resetFace = async () => {
+    if (!await confirm(t('face.reset_confirm', { name: m.full_name }))) return
+    const { error } = await supabase.from('face_profiles').delete().eq('member_id', m.id)
+    if (error) return toast(errorText(error, t), 'error')
+    toast(t('face.reset_done'))
+    onFaceReset?.()
   }
 
   const remove = async () => {
@@ -224,6 +249,20 @@ function EditMember({ m, onClose, onSaved }) {
             <Field label={t('set.work_days')}>
               <WeekdayPicker value={f.work_days} onChange={(v) => setF({ ...f, work_days: v })} />
             </Field>
+          </div>
+        )}
+        {(face || company.face_check) && (
+          <div className="subpanel face-section">
+            <div className="field-label">{t('face.section')}</div>
+            {face ? (
+              <div className="face-row">
+                {face.url && <img src={face.url} alt="" className="face-ref" />}
+                <div className="stack">
+                  <span className="muted small">{t('face.enrolled_at', { date: fmtDate(face.enrolled_at) })}</span>
+                  <Button size="sm" variant="danger-ghost" onClick={resetFace}>{t('face.reset')}</Button>
+                </div>
+              </div>
+            ) : <span className="muted small">{t('face.none_hint')}</span>}
           </div>
         )}
         <p className="muted small">{t('emp.joined', { date: fmtDate(m.created_at) })}</p>

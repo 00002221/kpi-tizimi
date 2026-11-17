@@ -127,6 +127,17 @@ Oy o'rtasida ishga kirgan xodimning oyligi ishlagan kunlariga mutanosib hisoblan
 
 Xabarlar kompaniyaning asosiy tilida yuboriladi.
 
+### Yuz tekshiruvi (ixtiyoriy)
+
+Sozlamalar → **Kelishda selfi talab qilinsin** va **Yuzni namunaga solishtirish** yoqiladi.
+
+- Har bir xodim bir marta, rozilik belgisini qo'yib, yuz namunasini beradi. Bu ro'yxatdan o'tgach yoki birinchi kirishda so'raladi.
+- «Keldim» bosilganda selfi namuna bilan **telefonning o'zida** solishtiriladi (face-api, bepul). Natijada serverga faqat 128 ta raqamdan iborat "yuz izi" yuboriladi va masofani server hisoblaydi.
+- Mos kelmasa, kelish baribir yoziladi, lekin **«Yuz mos emas»** deb belgilanadi va Telegram'ga ogohlantirish boradi.
+- Admin «Davomat» bo'limida namuna va selfini yonma-yon ko'radi. «Xodimlar» bo'limidan namunani o'chirib, uni qayta oldirishi mumkin.
+- Sezgirlik chegarasi `companies.face_threshold` ustunida (sukut bo'yicha 0.55). Qiymat kichikroq bo'lsa, tekshiruv qattiqroq bo'ladi.
+- Yuz rasmi biometrik ma'lumot hisoblanadi, shuning uchun xodimlardan yozma rozilik oling.
+
 ## 6. Xavfsizlik
 
 - Har bir jadvalda **Row Level Security** yoqilgan:
@@ -138,6 +149,10 @@ Xabarlar kompaniyaning asosiy tilida yuboriladi.
 - Kompaniyada kamida bitta faol admin qolishi shart.
 - **Cheklov:** maxsus «soxta GPS» ilovalari brauzerni aldashi mumkin. Selfi bu xavfni kamaytiradi. Haqiqiy mobil ilovada soxta joylashuvni aniqlash imkoniyati qo'shiladi.
 
+## Bazani yangilash
+
+Yangi versiya chiqqanda Supabase → **SQL Editor** da yangilangan `supabase/schema.sql` ni to'liq qayta ishga tushiring. Fayl mavjud ma'lumotlarni o'chirmaydi, faqat yangi ustun va funksiyalarni qo'shadi.
+
 ## 7. Mobil ilova uchun tayyor API
 
 Keyingi bosqichda React Native yoki Flutter ilovasi yozilsa, u xuddi shu Supabase funksiyalarini chaqiradi.
@@ -145,7 +160,8 @@ Keyingi bosqichda React Native yoki Flutter ilovasi yozilsa, u xuddi shu Supabas
 | Funksiya | Vazifasi |
 |---|---|
 | `my_today()` | Bugungi jadval, ishxona joylashuvi, davomat holati |
-| `check_in(lat, lng, accuracy, selfie_path)` | Kelishni belgilash |
+| `check_in(lat, lng, accuracy, selfie_path, face)` | Kelishni belgilash (`face` — 128 ta raqam) |
+| `my_face_status()`, `enroll_face(descriptor, photo, consent)` | Yuz namunasi |
 | `check_out(lat, lng, accuracy)` | Ketishni belgilash |
 | `set_task_status(task_id, status)` | Ishchi o'z vazifasi holatini o'zgartiradi |
 | `attendance_grid(from, to)` | Kunlar bo'yicha holatlar |

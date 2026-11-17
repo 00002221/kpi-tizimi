@@ -152,6 +152,25 @@ create table if not exists public.ratings (
 );
 
 -- =====================================================================
+--  v2: YUZ TEKSHIRUVI (mavjud bazaga ham qo'llanadi — fayl qayta ishga tushirilganda)
+-- =====================================================================
+
+alter table public.companies  add column if not exists face_check     boolean not null default false;
+alter table public.companies  add column if not exists face_threshold real    not null default 0.55;
+alter table public.attendance add column if not exists face_status    text;   -- match | mismatch | no_face
+alter table public.attendance add column if not exists face_distance  real;   -- 0 = bir xil yuz, >0.55 = boshqa odam
+
+-- Xodimning yuz namunasi: rasm + 128 ta raqamdan iborat "yuz izi". Ishchining o'ziga ko'rinmaydi.
+create table if not exists public.face_profiles (
+  member_id   uuid primary key references public.members(id) on delete cascade,
+  company_id  uuid not null references public.companies(id) on delete cascade,
+  descriptor  real[] not null check (array_length(descriptor, 1) = 128),
+  photo_path  text not null,
+  consent_at  timestamptz not null default now(),
+  enrolled_at timestamptz not null default now()
+);
+
+-- =====================================================================
 --  YORDAMCHI FUNKSIYALAR
 -- =====================================================================
 
@@ -224,6 +243,15 @@ alter table public.attendance       enable row level security;
 alter table public.holidays         enable row level security;
 alter table public.tasks            enable row level security;
 alter table public.ratings          enable row level security;
+alter table public.face_profiles    enable row level security;
+
+-- Yuz namunalarini faqat admin ko'radi va o'chiradi (qayta olish uchun). Yozish — faqat enroll_face() orqali.
+drop policy if exists face_admin_select on public.face_profiles;
+create policy face_admin_select on public.face_profiles for select to authenticated
+  using (company_id = public.my_company_id() and public.is_admin());
+drop policy if exists face_admin_delete on public.face_profiles;
+create policy face_admin_delete on public.face_profiles for delete to authenticated
+  using (company_id = public.my_company_id() and public.is_admin());
 
 drop policy if exists companies_select on public.companies;
 create policy companies_select on public.companies for select to authenticated
@@ -457,18 +485,68 @@ begin
                   'break_end', s.break_end, 'work_days', s.work_days),
     'office', jsonb_build_object('lat', c.office_lat, 'lng', c.office_lng, 'radius_m', c.radius_m,
                   'require_selfie', c.require_selfie, 'timezone', c.timezone, 'name', c.name),
+    'face', jsonb_build_object('required', c.require_selfie and c.face_check,
+                  'enrolled', exists (select 1 from face_profiles f where f.member_id = m.id)),
     'attendance', case when a.id is null then null else to_jsonb(a) end
   );
 end $$;
 
+-- Ikki "yuz izi" orasidagi masofa (Evklid). ~0.3–0.45 — bir odam, ~0.6+ — boshqa odam.
+create or replace function public.face_distance(a real[], b real[]) returns real
+language sql immutable as $$
+  select sqrt(sum(power(x.va - x.vb, 2)))::real
+    from unnest(a, b) as x(va, vb)
+$$;
+
+create or replace function public.jsonb_to_face(p jsonb) returns real[]
+language sql immutable as $$
+  select case when jsonb_typeof(p) = 'array' and jsonb_array_length(p) = 128
+              then array(select v::real from jsonb_array_elements_text(p) with ordinality as t(v, i) order by i)
+         end
+$$;
+
+-- Yuz namunasi kerakmi va olinganmi (ro'yxatdan o'tgan, hali tasdiqlanmagan xodim uchun ham)
+create or replace function public.my_face_status() returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'required', coalesce(c.require_selfie and c.face_check, false),
+    'enrolled', exists (select 1 from face_profiles f where f.member_id = m.id))
+    from members m join companies c on c.id = m.company_id
+   where m.user_id = auth.uid()
+$$;
+
+-- Xodim o'z yuz namunasini beradi (bir marta; qayta olish uchun admin eskisini o'chiradi)
+create or replace function public.enroll_face(p_descriptor jsonb, p_photo text, p_consent boolean)
+returns void language plpgsql security definer set search_path = public as $$
+declare m members; v_desc real[];
+begin
+  select * into m from members where user_id = auth.uid();
+  if m.id is null then raise exception 'NOT_MEMBER'; end if;
+  if m.status = 'inactive' then raise exception 'NOT_ACTIVE'; end if;
+  if not coalesce(p_consent, false) then raise exception 'FACE_CONSENT_REQUIRED'; end if;
+  v_desc := jsonb_to_face(p_descriptor);
+  if v_desc is null then raise exception 'FACE_NOT_FOUND'; end if;
+  if p_photo is null or p_photo not like (m.company_id::text || '/' || auth.uid()::text || '/%')
+     or not exists (select 1 from storage.objects where bucket_id = 'selfies' and name = p_photo) then
+    raise exception 'SELFIE_INVALID';
+  end if;
+  if exists (select 1 from face_profiles where member_id = m.id) then raise exception 'FACE_ALREADY_ENROLLED'; end if;
+  insert into face_profiles (member_id, company_id, descriptor, photo_path) values (m.id, m.company_id, v_desc, p_photo);
+end $$;
+
+-- Eski (yuz tekshiruvisiz) versiyani olib tashlash
+drop function if exists public.check_in(double precision, double precision, double precision, text);
+
 create or replace function public.check_in(p_lat double precision, p_lng double precision,
                                            p_accuracy double precision default null,
-                                           p_selfie text default null)
+                                           p_selfie text default null,
+                                           p_face jsonb default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   m members; c companies; s member_schedule; a attendance;
   v_now timestamptz := now(); v_local timestamp; v_date date; v_time time;
   v_dist double precision; v_workday boolean; v_late int := 0; v_status text := 'present';
+  v_ref real[]; v_face real[]; v_face_status text; v_face_dist real;
 begin
   select * into m from members where user_id = auth.uid();
   if m.id is null then raise exception 'NOT_MEMBER'; end if;
@@ -498,6 +576,19 @@ begin
     end if;
   end if;
 
+  -- Yuzni namunaga solishtirish: mos kelmasa ham kelish yoziladi, lekin "shubhali" deb belgilanadi
+  if c.require_selfie and c.face_check then
+    select descriptor into v_ref from face_profiles where member_id = m.id;
+    if v_ref is null then raise exception 'FACE_NOT_ENROLLED'; end if;
+    v_face := jsonb_to_face(p_face);
+    if v_face is null then
+      v_face_status := 'no_face';
+    else
+      v_face_dist := face_distance(v_ref, v_face);
+      v_face_status := case when v_face_dist <= c.face_threshold then 'match' else 'mismatch' end;
+    end if;
+  end if;
+
   select * into s from member_schedule where member_id = m.id;
   v_local := v_now at time zone c.timezone;
   v_date := v_local::date;
@@ -515,14 +606,17 @@ begin
 
   if a.id is null then
     insert into attendance (company_id, member_id, work_date, status, check_in_at, check_in_lat, check_in_lng,
-                            check_in_accuracy, check_in_distance, check_in_selfie, late_minutes)
-    values (c.id, m.id, v_date, v_status, v_now, p_lat, p_lng, p_accuracy, round(v_dist), p_selfie, v_late)
+                            check_in_accuracy, check_in_distance, check_in_selfie, late_minutes,
+                            face_status, face_distance)
+    values (c.id, m.id, v_date, v_status, v_now, p_lat, p_lng, p_accuracy, round(v_dist), p_selfie, v_late,
+            v_face_status, v_face_dist)
     returning * into a;
   else
     update attendance
        set status = v_status, check_in_at = v_now, check_in_lat = p_lat, check_in_lng = p_lng,
            check_in_accuracy = p_accuracy, check_in_distance = round(v_dist),
-           check_in_selfie = p_selfie, late_minutes = v_late
+           check_in_selfie = p_selfie, late_minutes = v_late,
+           face_status = v_face_status, face_distance = v_face_dist
      where id = a.id
     returning * into a;
   end if;
@@ -595,13 +689,15 @@ end $$;
 
 -- Har bir ishchi × har bir kun uchun holat. Admin — hammani, ishchi — faqat o'zini ko'radi.
 -- status: present | late | excused | absent | not_yet | future | off | holiday
+drop function if exists public.attendance_grid(date, date);
 create or replace function public.attendance_grid(p_from date, p_to date)
 returns table (
   member_id uuid, full_name text, "position" text, day date, expected boolean, status text,
   attendance_id uuid, check_in_at timestamptz, check_out_at timestamptz,
   late_minutes int, early_leave_minutes int, worked_minutes int,
   check_in_distance int, check_out_distance int, check_in_accuracy double precision,
-  check_in_selfie text, note text, work_start time, work_end time
+  check_in_selfie text, note text, work_start time, work_end time,
+  face_status text, face_distance real
 )
 language plpgsql stable security definer set search_path = public as $$
 #variable_conflict use_column
@@ -640,7 +736,7 @@ begin
          end,
          a.id, a.check_in_at, a.check_out_at, a.late_minutes, a.early_leave_minutes, a.worked_minutes,
          a.check_in_distance, a.check_out_distance, a.check_in_accuracy, a.check_in_selfie, a.note,
-         mem.work_start, mem.work_end
+         mem.work_start, mem.work_end, a.face_status, a.face_distance
     from mem cross join days
     left join hol on hol.day = days.day
     left join attendance a on a.member_id = mem.id and a.work_date = days.day
@@ -841,6 +937,20 @@ begin
         else '✅ ' || v_name || ' keldi: ' || v_time end;
     end if;
     if v_msg is not null then perform tg_send(new.company_id, v_msg); end if;
+
+    -- Yuz mos kelmasa — har doim ogohlantirish
+    if new.face_status in ('mismatch', 'no_face') then
+      perform tg_send(new.company_id, case v_lang
+        when 'ru' then '⚠️ ' || v_name || ': ' || case when new.face_status = 'no_face' then 'лицо на селфи не обнаружено'
+                       else 'лицо не совпало с образцом (сходство ' || greatest(0, round((1 - new.face_distance) * 100)) || '%)' end
+                       || '. Проверьте селфи в разделе «Посещаемость».'
+        when 'en' then '⚠️ ' || v_name || ': ' || case when new.face_status = 'no_face' then 'no face found in the selfie'
+                       else 'face does not match the reference (similarity ' || greatest(0, round((1 - new.face_distance) * 100)) || '%)' end
+                       || '. Check the selfie under Attendance.'
+        else '⚠️ ' || v_name || ': ' || case when new.face_status = 'no_face' then 'selfida yuz aniqlanmadi'
+                       else 'yuz namunaga mos kelmadi (o''xshashlik ' || greatest(0, round((1 - new.face_distance) * 100)) || '%)' end
+                       || '. «Davomat» bo''limida selfini tekshiring.' end);
+    end if;
   end if;
 
   -- Ketish
@@ -932,7 +1042,7 @@ on conflict (id) do nothing;
 drop policy if exists selfies_insert on storage.objects;
 create policy selfies_insert on storage.objects for insert to authenticated
   with check (bucket_id = 'selfies'
-              and (storage.foldername(name))[1] = public.my_company_id()::text
+              and (storage.foldername(name))[1] = public.my_company_id_any()::text
               and (storage.foldername(name))[2] = auth.uid()::text);
 
 drop policy if exists selfies_select on storage.objects;

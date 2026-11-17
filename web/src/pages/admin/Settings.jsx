@@ -25,6 +25,7 @@ export function WeekdayPicker({ value = [], onChange }) {
 const pickCompany = (c) => ({
   name: c.name, default_lang: c.default_lang, timezone: c.timezone, currency: c.currency,
   office_lat: c.office_lat, office_lng: c.office_lng, radius_m: c.radius_m, require_selfie: c.require_selfie,
+  face_check: c.face_check,
   work_start: hhmm(c.work_start), work_end: hhmm(c.work_end), grace_minutes: c.grace_minutes,
   break_start: c.break_start ? hhmm(c.break_start) : '', break_end: c.break_end ? hhmm(c.break_end) : '',
   work_days: c.work_days || [],
@@ -66,6 +67,7 @@ export default function Settings() {
       office_lat: f.office_lat === '' || f.office_lat == null ? null : Number(f.office_lat),
       office_lng: f.office_lng === '' || f.office_lng == null ? null : Number(f.office_lng),
       radius_m: Math.min(5000, Math.max(10, num(f.radius_m))), require_selfie: f.require_selfie,
+      face_check: f.require_selfie && f.face_check,
       work_start: f.work_start, work_end: f.work_end, grace_minutes: num(f.grace_minutes),
       break_start: f.break_start || null, break_end: f.break_end || null, work_days: f.work_days,
       late_fine_per_case: num(f.late_fine_per_case), late_fine_per_minute: num(f.late_fine_per_minute),
@@ -124,6 +126,9 @@ export default function Settings() {
               <input type="range" min="20" max="1000" step="10" value={f.radius_m} onChange={set('radius_m')} />
             </Field>
             <Toggle checked={f.require_selfie} onChange={(v) => setV('require_selfie', v)} label={t('set.require_selfie')} hint={t('set.require_selfie_hint')} />
+            {f.require_selfie && (
+              <Toggle checked={f.face_check} onChange={(v) => setV('face_check', v)} label={t('set.face_check')} hint={t('set.face_check_hint')} />
+            )}
           </div>
         </div>
       </section>
