@@ -904,7 +904,8 @@ begin
   perform net.http_post(
     url := 'https://api.telegram.org/bot' || t.bot_token || '/sendMessage',
     body := jsonb_build_object('chat_id', t.chat_id, 'text', p_text, 'disable_web_page_preview', true),
-    headers := '{"Content-Type": "application/json"}'::jsonb
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    timeout_milliseconds := 20000
   );
 exception when others then
   raise warning 'tg_send: %', sqlerrm;
