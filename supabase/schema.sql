@@ -181,16 +181,40 @@ alter table public.company_telegram add column if not exists notify_forgot_check
 alter table public.company_telegram add column if not exists notify_new_member      boolean not null default true;
 
 -- =====================================================================
+--  v5: YANGI KOMPANIYALARNI PLATFORMA EGASI TASDIQLAYDI
+-- =====================================================================
+
+-- Mavjud kompaniyalar 'active' bo'lib qoladi; yangi ro'yxatdan o'tganlar 'pending' bilan yaratiladi
+alter table public.companies add column if not exists status text not null default 'active';
+do $$ begin
+  alter table public.companies add constraint companies_status_chk check (status in ('pending', 'active', 'rejected'));
+exception when duplicate_object then null; end $$;
+
+-- Platforma egasi(lar)i — kompaniyalarni tasdiqlaydi (faqat server funksiyalari orqali)
+create table if not exists public.platform_admins (
+  user_id    uuid primary key references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+-- Platforma xabarlari uchun Telegram (yagona qator)
+create table if not exists public.platform_settings (
+  id        boolean primary key default true check (id),
+  bot_token text,
+  chat_id   text,
+  app_url   text not null default 'https://kpi-uz.netlify.app'
+);
+
+-- =====================================================================
 --  YORDAMCHI FUNKSIYALAR
 -- =====================================================================
 
 -- Ilova bazaning versiyasini tekshiradi (sayt yangi, baza eski bo'lib qolmasligi uchun)
 create or replace function public.schema_version() returns int
-language sql immutable as $$ select 4 $$;
+language sql immutable as $$ select 5 $$;
 
 create or replace function public.my_company_id() returns uuid
 language sql stable security definer set search_path = public as $$
-  select company_id from members where user_id = auth.uid() and status = 'active'
+  select m.company_id from members m join companies c on c.id = m.company_id
+   where m.user_id = auth.uid() and m.status = 'active' and c.status = 'active'
 $$;
 
 -- Har qanday holatdagi (pending ham) a'zolik kompaniyasi
@@ -206,7 +230,13 @@ $$;
 
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from members where user_id = auth.uid() and role = 'admin' and status = 'active')
+  select exists (select 1 from members m join companies c on c.id = m.company_id
+                  where m.user_id = auth.uid() and m.role = 'admin' and m.status = 'active' and c.status = 'active')
+$$;
+
+create or replace function public.is_platform_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from platform_admins where user_id = auth.uid())
 $$;
 
 create or replace function public.geo_distance_m(lat1 double precision, lng1 double precision,
@@ -258,6 +288,8 @@ alter table public.holidays         enable row level security;
 alter table public.tasks            enable row level security;
 alter table public.ratings          enable row level security;
 alter table public.face_profiles    enable row level security;
+alter table public.platform_admins  enable row level security;
+alter table public.platform_settings enable row level security;
 
 -- Yuz namunalarini faqat admin ko'radi va o'chiradi (qayta olish uchun). Yozish — faqat enroll_face() orqali.
 drop policy if exists face_admin_select on public.face_profiles;
@@ -371,6 +403,63 @@ create trigger tasks_completed_trg before insert or update on public.tasks
   for each row execute function public.tasks_completed_at();
 
 -- =====================================================================
+--  PLATFORMA: YANGI KOMPANIYALARNI TASDIQLASH (v5)
+-- =====================================================================
+
+-- Yangi kompaniya arizasi haqida platforma egasiga Telegram xabari
+create or replace function public.platform_notify_company(p_company uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare s platform_settings; c companies; m members;
+begin
+  select * into s from platform_settings limit 1;
+  if coalesce(s.bot_token, '') = '' or coalesce(s.chat_id, '') = '' then return; end if;
+  select * into c from companies where id = p_company;
+  select * into m from members where company_id = p_company and role = 'admin' order by created_at limit 1;
+  perform net.http_post(
+    url := 'https://api.telegram.org/bot' || s.bot_token || '/sendMessage',
+    body := jsonb_build_object('chat_id', s.chat_id, 'disable_web_page_preview', true,
+      'text', '🏢 Yangi kompaniya arizasi: ' || c.name
+              || E'\nEgasi: ' || coalesce(m.full_name, '—') || coalesce(', ' || m.phone, '') || coalesce(', ' || m.email, '')
+              || E'\nTasdiqlash: ' || s.app_url || '/#/platform'),
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    timeout_milliseconds := 20000
+  );
+exception when others then
+  raise warning 'platform_notify_company: %', sqlerrm;
+end $$;
+
+-- Platforma egasi uchun kompaniyalar ro'yxati (avval kutilayotganlar)
+create or replace function public.platform_companies()
+returns table (id uuid, name text, status text, created_at timestamptz,
+               owner_name text, owner_email text, owner_phone text, members int, last_activity date)
+language plpgsql stable security definer set search_path = public as $$
+#variable_conflict use_column
+begin
+  if not is_platform_admin() then raise exception 'FORBIDDEN'; end if;
+  return query
+  select c.id, c.name, c.status, c.created_at, o.full_name, o.email, o.phone,
+         (select count(*)::int from members x where x.company_id = c.id),
+         (select max(a.work_date) from attendance a where a.company_id = c.id)
+    from companies c
+    left join lateral (select mm.full_name, mm.email, mm.phone from members mm
+                        where mm.company_id = c.id and mm.role = 'admin' order by mm.created_at limit 1) o on true
+   order by (c.status = 'pending') desc, c.created_at desc;
+end $$;
+
+-- Tasdiqlash / rad etish (o'z kompaniyasini o'zgartira olmaydi — tasodifan o'zini bloklamasin)
+create or replace function public.platform_set_company_status(p_company uuid, p_status text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_platform_admin() then raise exception 'FORBIDDEN'; end if;
+  if p_status not in ('active', 'rejected', 'pending') then raise exception 'BAD_STATUS'; end if;
+  if exists (select 1 from members where company_id = p_company and user_id = auth.uid()) then
+    raise exception 'OWN_COMPANY';
+  end if;
+  update companies set status = p_status where id = p_company;
+  if not found then raise exception 'NOT_FOUND'; end if;
+end $$;
+
+-- =====================================================================
 --  RO'YXATDAN O'TISH
 -- =====================================================================
 
@@ -384,14 +473,15 @@ declare
   v_name text := coalesce(nullif(trim(meta->>'full_name'), ''), split_part(new.email, '@', 1));
 begin
   if meta->>'intent' = 'create_company' then
-    insert into companies (name, join_code, default_lang)
-    values (coalesce(nullif(trim(meta->>'company_name'), ''), 'Company'), gen_join_code(), v_lang)
+    insert into companies (name, join_code, default_lang, status)
+    values (coalesce(nullif(trim(meta->>'company_name'), ''), 'Company'), gen_join_code(), v_lang, 'pending')
     returning id into v_company;
     insert into company_telegram (company_id) values (v_company);
     insert into members (company_id, user_id, full_name, email, phone, role, status, track_attendance)
     values (v_company, new.id, v_name, new.email, nullif(meta->>'phone', ''), 'admin', 'active', false);
+    perform platform_notify_company(v_company);
   elsif meta->>'intent' = 'join' then
-    select id into v_company from companies where join_code = upper(trim(meta->>'join_code'));
+    select id into v_company from companies where join_code = upper(trim(meta->>'join_code')) and status = 'active';
     if v_company is not null then
       insert into members (company_id, user_id, full_name, email, phone, role, status)
       values (v_company, new.id, v_name, new.email, nullif(meta->>'phone', ''), 'employee', 'pending');
@@ -409,7 +499,7 @@ create trigger on_auth_user_created after insert on auth.users
 -- Kodni oldindan tekshirish (ro'yxatdan o'tish sahifasida kompaniya nomini ko'rsatish uchun)
 create or replace function public.check_join_code(p_code text) returns text
 language sql stable security definer set search_path = public as $$
-  select name from companies where join_code = upper(trim(p_code))
+  select name from companies where join_code = upper(trim(p_code)) and status = 'active'
 $$;
 
 create or replace function public.create_company(p_name text, p_full_name text, p_lang text default 'uz')
@@ -419,13 +509,14 @@ begin
   if auth.uid() is null then raise exception 'NOT_AUTHENTICATED'; end if;
   if exists (select 1 from members where user_id = auth.uid()) then raise exception 'ALREADY_MEMBER'; end if;
   select email into v_email from auth.users where id = auth.uid();
-  insert into companies (name, join_code, default_lang)
+  insert into companies (name, join_code, default_lang, status)
   values (coalesce(nullif(trim(p_name), ''), 'Company'), gen_join_code(),
-          case when p_lang in ('uz','ru','en') then p_lang else 'uz' end)
+          case when p_lang in ('uz','ru','en') then p_lang else 'uz' end, 'pending')
   returning id into v_company;
   insert into company_telegram (company_id) values (v_company);
   insert into members (company_id, user_id, full_name, email, role, status, track_attendance)
   values (v_company, auth.uid(), coalesce(nullif(trim(p_full_name), ''), v_email), v_email, 'admin', 'active', false);
+  perform platform_notify_company(v_company);
   return v_company;
 end $$;
 
@@ -435,7 +526,7 @@ declare v_company uuid; v_email text;
 begin
   if auth.uid() is null then raise exception 'NOT_AUTHENTICATED'; end if;
   if exists (select 1 from members where user_id = auth.uid()) then raise exception 'ALREADY_MEMBER'; end if;
-  select id into v_company from companies where join_code = upper(trim(p_code));
+  select id into v_company from companies where join_code = upper(trim(p_code)) and status = 'active';
   if v_company is null then raise exception 'INVALID_CODE'; end if;
   select email into v_email from auth.users where id = auth.uid();
   insert into members (company_id, user_id, full_name, email, role, status)
@@ -566,6 +657,7 @@ begin
   if m.id is null then raise exception 'NOT_MEMBER'; end if;
   if m.status <> 'active' then raise exception 'NOT_ACTIVE'; end if;
   select * into c from companies where id = m.company_id;
+  if c.status <> 'active' then raise exception 'NOT_ACTIVE'; end if;
   if c.office_lat is null or c.office_lng is null then raise exception 'NO_OFFICE_LOCATION'; end if;
   if p_lat is null or p_lng is null or abs(p_lat) > 90 or abs(p_lng) > 180 then raise exception 'BAD_LOCATION'; end if;
   v_date := (v_now at time zone c.timezone)::date;
@@ -649,6 +741,7 @@ begin
   if m.id is null then raise exception 'NOT_MEMBER'; end if;
   if m.status <> 'active' then raise exception 'NOT_ACTIVE'; end if;
   select * into c from companies where id = m.company_id;
+  if c.status <> 'active' then raise exception 'NOT_ACTIVE'; end if;
   if c.office_lat is null then raise exception 'NO_OFFICE_LOCATION'; end if;
   if p_lat is null or p_lng is null then raise exception 'BAD_LOCATION'; end if;
 
@@ -1235,6 +1328,7 @@ revoke execute on function public.tg_send(uuid, text) from public, anon, authent
 revoke execute on function public.send_daily_summaries() from public, anon, authenticated;
 revoke execute on function public.handle_new_user() from public, anon, authenticated;
 revoke execute on function public.run_checkout_tasks() from public, anon, authenticated;
+revoke execute on function public.platform_notify_company(uuid) from public, anon, authenticated;
 
 -- Ro'yxatdan o'tish sahifasi kodni tekshira olishi uchun
 revoke execute on function public.check_join_code(text) from public;

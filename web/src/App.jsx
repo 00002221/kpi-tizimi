@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './auth/AuthProvider.jsx'
 import { useI18n } from './i18n/index.jsx'
 import { Spinner } from './components/ui.jsx'
 import { Login, RegisterCompany, JoinCompany } from './pages/auth/AuthPages.jsx'
-import { NoCompany, Pending, Inactive, ForceNewPassword } from './pages/auth/StatusPages.jsx'
+import { NoCompany, Pending, Inactive, ForceNewPassword, CompanyPending, CompanyRejected } from './pages/auth/StatusPages.jsx'
 import EmployeeShell from './pages/employee/EmployeeShell.jsx'
 import AdminShell from './pages/admin/AdminShell.jsx'
 
@@ -33,6 +33,8 @@ function Gate() {
     )
   }
   if (!member) return <NoCompany />
+  if (member.company?.status === 'pending') return <CompanyPending />
+  if (member.company?.status === 'rejected') return <CompanyRejected />
   if (member.status === 'pending') return <Pending />
   if (member.status === 'inactive') return <Inactive />
   if (member.must_change_password) return <ForceNewPassword />
