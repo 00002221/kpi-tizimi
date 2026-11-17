@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n/index.jsx'
 import { Alert, Button, Empty, FaceBadge, Field, Modal, PageHeader, Spinner, StatusBadge, Tabs, useToast, useConfirm } from '../../components/ui.jsx'
 import { exportXlsx } from '../../lib/excel.js'
 import { fromMin, toMin } from '../../components/DayTimeline.jsx'
+import TimeInput from '../../components/TimeInput.jsx'
 import { cls, errorText, fmtDate, fmtMinutes, fmtTime, todayIn } from '../../lib/utils.js'
 
 export default function Attendance() {
@@ -61,7 +62,7 @@ function Daily() {
       [t('col.position')]: r.position || '',
       [t('col.status')]: t('status.' + r.status),
       [t('col.in')]: r.check_in_at ? fmtTime(r.check_in_at, tz) : '',
-      [t('col.out')]: r.check_out_at ? fmtTime(r.check_out_at, tz) : '',
+      [t('col.out')]: r.check_out_at ? fmtTime(r.check_out_at, tz) + (r.check_out_auto ? ` (${t('att.auto_out')})` : '') : '',
       [t('col.late_min')]: r.status === 'late' ? r.late_minutes : 0,
       [t('col.early_min')]: r.early_leave_minutes || 0,
       [t('col.worked_min')]: r.worked_minutes ?? '',
@@ -101,7 +102,7 @@ function Daily() {
                   <td><div className="cell-name">{r.full_name}</div>{r.position && <div className="muted small">{r.position}</div>}</td>
                   <td><StatusBadge status={r.status} minutes={r.late_minutes} />{r.note && <div className="muted small">{r.note}</div>}</td>
                   <td>{fmtTime(r.check_in_at, tz)}</td>
-                  <td>{fmtTime(r.check_out_at, tz)}</td>
+                  <td>{fmtTime(r.check_out_at, tz)}{r.check_out_auto && <span className="auto-tag" title={t('att.auto_out_hint')}>{t('att.auto_out')}</span>}</td>
                   <td className="num">{r.early_leave_minutes ? fmtMinutes(r.early_leave_minutes, t) : '—'}</td>
                   <td className="num">{fmtMinutes(r.worked_minutes, t)}</td>
                   <td className="num">{r.check_in_distance != null ? `${r.check_in_distance} m` : '—'}</td>
@@ -223,6 +224,8 @@ function EditRecord({ row, date, onClose, onSaved, selfie, reference }) {
     early_leave_minutes: row.early_leave_minutes || 0,
     note: row.note || '',
   })
+  const outInitial = row.check_out_at ? fmtTime(row.check_out_at, company.timezone) : ''
+  const [out, setOut] = useState(outInitial)
   const [busy, setBusy] = useState(false)
 
   const save = async () => {
@@ -238,8 +241,13 @@ function EditRecord({ row, date, onClose, onSaved, selfie, reference }) {
     const { error } = row.attendance_id
       ? await supabase.from('attendance').update(payload).eq('id', row.attendance_id)
       : await supabase.from('attendance').insert({ ...payload, company_id: company.id, member_id: row.member_id, work_date: date })
+    if (error) { setBusy(false); return toast(errorText(error, t), 'error') }
+    // Ketish vaqti o'zgargan bo'lsa — server ishlangan vaqt va erta ketishni qayta hisoblaydi
+    if (row.attendance_id && row.check_in_at && out !== outInitial) {
+      const r = await supabase.rpc('admin_set_checkout', { p_attendance: row.attendance_id, p_time: out || null })
+      if (r.error) { setBusy(false); return toast(errorText(r.error, t), 'error') }
+    }
     setBusy(false)
-    if (error) return toast(errorText(error, t), 'error')
     toast(t('common.saved'))
     onSaved()
   }
@@ -276,6 +284,12 @@ function EditRecord({ row, date, onClose, onSaved, selfie, reference }) {
               <div><FaceBadge status={row.face_status} distance={row.face_distance} /></div>
             </div>
           ) : <img src={selfie} alt="" className="photo-full" style={{ maxHeight: 260, objectFit: 'cover' }} />
+        )}
+        {row.check_out_auto && <Alert kind="warn">{t('att.auto_out_hint')}</Alert>}
+        {row.check_in_at && (
+          <Field label={t('att.checkout_time')} hint={t('att.checkout_time_hint')}>
+            <TimeInput allowEmpty value={out} onChange={setOut} style={{ width: 110 }} />
+          </Field>
         )}
         <Field label={t('col.status')}>
           <select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>

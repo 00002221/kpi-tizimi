@@ -195,6 +195,19 @@ function EditMember({ m, face, onFaceReset, onClose, onSaved }) {
     onFaceReset?.()
   }
 
+  const [temp, setTemp] = useState(null)
+  const [copied, setCopied] = useState(false)
+  const resetPassword = async () => {
+    if (!await confirm(t('pw.reset_confirm', { name: m.full_name }))) return
+    const { data, error } = await supabase.rpc('admin_reset_password', { p_member: m.id })
+    if (error) return toast(errorText(error, t), 'error')
+    setCopied(false)
+    setTemp(data)
+  }
+  const copyTemp = async () => {
+    try { await navigator.clipboard.writeText(temp); setCopied(true) } catch { /* nusxalab bo'lmasa, qo'lda yoziladi */ }
+  }
+
   const remove = async () => {
     if (!await confirm(t('emp.delete_confirm', { name: m.full_name }))) return
     const { error } = await supabase.from('members').delete().eq('id', m.id)
@@ -266,8 +279,29 @@ function EditMember({ m, face, onFaceReset, onClose, onSaved }) {
             ) : <span className="muted small">{t('face.none_hint')}</span>}
           </div>
         )}
+        {m.id !== me.id && (
+          <div className="subpanel">
+            <div className="field-label">{t('pw.section')}</div>
+            <p className="muted small" style={{ margin: '0 0 10px' }}>{t('pw.reset_hint')}</p>
+            <Button size="sm" variant="ghost" onClick={resetPassword}>{t('pw.reset_btn')}</Button>
+          </div>
+        )}
         <p className="muted small">{t('emp.joined', { date: fmtDate(m.created_at) })}</p>
       </div>
+      <Modal
+        open={Boolean(temp)} onClose={() => setTemp(null)} title={t('pw.temp_title')}
+        footer={<Button onClick={() => setTemp(null)}>{t('common.close')}</Button>}
+      >
+        <div className="stack">
+          <p>{t('pw.temp_text', { name: m.full_name })}</p>
+          <div className="temp-pw">
+            <div><span className="muted small">{t('auth.email')}</span><b>{m.email}</b></div>
+            <div><span className="muted small">{t('auth.password')}</span><b className="temp-pw-code">{temp}</b></div>
+          </div>
+          <Button variant="ghost" onClick={copyTemp}>{copied ? t('pw.copied') : t('pw.copy')}</Button>
+          <Alert kind="warn">{t('pw.temp_once')}</Alert>
+        </div>
+      </Modal>
     </Modal>
   )
 }

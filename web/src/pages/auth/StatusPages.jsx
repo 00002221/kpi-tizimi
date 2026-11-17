@@ -95,3 +95,41 @@ export function Inactive() {
     </AuthLayout>
   )
 }
+
+// Admin vaqtinchalik parol bergan: davom etishdan oldin o'z parolini o'rnatadi
+export function ForceNewPassword() {
+  const { t } = useI18n()
+  const { refresh, signOut } = useAuth()
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (pw !== pw2) return setError(t('pw.mismatch'))
+    setBusy(true)
+    setError(null)
+    const { error } = await supabase.auth.updateUser({ password: pw })
+    if (error) { setBusy(false); return setError(errorText(error, t)) }
+    const r = await supabase.rpc('password_changed')
+    setBusy(false)
+    if (r.error) return setError(errorText(r.error, t))
+    refresh()
+  }
+
+  return (
+    <AuthLayout title={t('pw.force_title')} sub={t('pw.force_sub')} footer={<button className="link-btn" onClick={signOut}>{t('common.logout')}</button>}>
+      <form onSubmit={submit} className="stack">
+        <Field label={t('pw.new')}>
+          <input type="password" autoComplete="new-password" required minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} />
+        </Field>
+        <Field label={t('pw.repeat')}>
+          <input type="password" autoComplete="new-password" required minLength={6} value={pw2} onChange={(e) => setPw2(e.target.value)} />
+        </Field>
+        {error && <Alert kind="error">{error}</Alert>}
+        <Button type="submit" loading={busy} size="lg">{t('pw.save')}</Button>
+      </form>
+    </AuthLayout>
+  )
+}

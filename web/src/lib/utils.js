@@ -106,9 +106,16 @@ export function errorText(err, t) {
   if (/Password should be at least/i.test(raw)) return t('err.WEAK_PASSWORD')
   if (/rate limit/i.test(raw)) return t('err.RATE_LIMIT')
   if (/Failed to fetch|NetworkError/i.test(raw)) return t('err.NETWORK')
+  // Sayt yangilangan, baza hali eski: funksiya yoki jadval topilmadi
+  if (err.code === 'PGRST202' || err.code === 'PGRST205' || err.code === '42883' || /schema cache|Could not find the function/i.test(raw)) {
+    return t('err.UPDATING')
+  }
   const key = 'err.' + code
   const txt = t(key, { n: err.hint ?? '' })
-  return txt === key ? raw : txt
+  if (txt !== key) return txt
+  // O'zimizning tushunarli kodlarimiz (KATTA_HARF) — o'z holicha; texnik inglizcha matn — umumiy xabar
+  if (/^[A-Z_]+$/.test(raw)) return raw
+  return t('err.UNKNOWN', { code: err.code || err.status || '—' })
 }
 
 export function cls(...a) {

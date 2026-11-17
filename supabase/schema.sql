@@ -171,8 +171,22 @@ create table if not exists public.face_profiles (
 );
 
 -- =====================================================================
+--  v4: PAROLNI TIKLASH, «KETDIM» ESLATMASI, YANGI XODIM XABARI
+-- =====================================================================
+
+alter table public.members          add column if not exists must_change_password   boolean not null default false;
+alter table public.attendance       add column if not exists check_out_auto         boolean not null default false; -- «Ketdim» bosilmagan, tizim yopgan
+alter table public.attendance       add column if not exists checkout_reminded_at   timestamptz;
+alter table public.company_telegram add column if not exists notify_forgot_checkout boolean not null default true;
+alter table public.company_telegram add column if not exists notify_new_member      boolean not null default true;
+
+-- =====================================================================
 --  YORDAMCHI FUNKSIYALAR
 -- =====================================================================
+
+-- Ilova bazaning versiyasini tekshiradi (sayt yangi, baza eski bo'lib qolmasligi uchun)
+create or replace function public.schema_version() returns int
+language sql immutable as $$ select 4 $$;
 
 create or replace function public.my_company_id() returns uuid
 language sql stable security definer set search_path = public as $$
@@ -673,6 +687,137 @@ begin
   return to_jsonb(a);
 end $$;
 
+-- Admin ketish vaqtini qo'yadi yoki tuzatadi (masalan, avtomatik yopilgan kun uchun). NULL — ketishni bekor qiladi.
+create or replace function public.admin_set_checkout(p_attendance uuid, p_time time)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  a attendance; c companies; s member_schedule;
+  v_out timestamptz; v_in time; v_workday boolean; v_early int := 0; v_break int := 0;
+begin
+  if not is_admin() then raise exception 'FORBIDDEN'; end if;
+  select * into a from attendance where id = p_attendance and company_id = my_company_id() for update;
+  if a.id is null then raise exception 'NOT_FOUND'; end if;
+  if a.check_in_at is null then raise exception 'NOT_CHECKED_IN'; end if;
+  select * into c from companies where id = a.company_id;
+  select * into s from member_schedule where member_id = a.member_id;
+
+  if p_time is null then
+    update attendance set check_out_at = null, check_out_lat = null, check_out_lng = null, check_out_accuracy = null,
+           check_out_distance = null, worked_minutes = null, early_leave_minutes = 0, check_out_auto = false,
+           edited_by = my_member_id(), edited_at = now()
+     where id = a.id returning * into a;
+    return to_jsonb(a);
+  end if;
+
+  v_in := (a.check_in_at at time zone c.timezone)::time;
+  v_out := (a.work_date + p_time) at time zone c.timezone;
+  if v_out < a.check_in_at then raise exception 'CHECKOUT_BEFORE_CHECKIN'; end if;
+
+  v_workday := extract(isodow from a.work_date)::int = any(s.work_days)
+               and not exists (select 1 from holidays where company_id = c.id and day = a.work_date);
+  if v_workday then
+    v_early := greatest(0, ceil(extract(epoch from (s.work_end - p_time)) / 60))::int;
+  end if;
+  if s.break_start is not null and s.break_end is not null and s.break_end > s.break_start then
+    v_break := greatest(0, floor(extract(epoch from (least(p_time, s.break_end) - greatest(v_in, s.break_start))) / 60))::int;
+  end if;
+
+  update attendance
+     set check_out_at = v_out, early_leave_minutes = v_early,
+         worked_minutes = greatest(0, floor(extract(epoch from (v_out - a.check_in_at)) / 60)::int - v_break),
+         check_out_auto = false, edited_by = my_member_id(), edited_at = now()
+   where id = a.id
+  returning * into a;
+  return to_jsonb(a);
+end $$;
+
+-- Admin xodimga vaqtinchalik parol beradi: eski parol ishlamay qoladi, barcha qurilmalardan chiqariladi,
+-- keyingi kirishda xodim o'z parolini o'rnatadi. Parol faqat shu javobda bir marta ko'rinadi.
+create or replace function public.admin_reset_password(p_member uuid) returns text
+language plpgsql volatile security definer set search_path = public as $$
+declare
+  m members; v_pw text := '';
+  alphabet text := 'abcdefghjkmnpqrstuvwxyz23456789';
+  b bytea := extensions.gen_random_bytes(8);
+begin
+  if not is_admin() then raise exception 'FORBIDDEN'; end if;
+  select * into m from members where id = p_member and company_id = my_company_id();
+  if m.id is null then raise exception 'NOT_FOUND'; end if;
+  if m.user_id = auth.uid() then raise exception 'USE_PROFILE'; end if;
+  for i in 0..7 loop
+    v_pw := v_pw || substr(alphabet, 1 + get_byte(b, i) % length(alphabet), 1);
+  end loop;
+  update auth.users set encrypted_password = extensions.crypt(v_pw, extensions.gen_salt('bf')), updated_at = now()
+   where id = m.user_id;
+  delete from auth.sessions where user_id = m.user_id;
+  update members set must_change_password = true where id = m.id;
+  return v_pw;
+end $$;
+
+-- Xodim yangi parol o'rnatgandan keyin belgini olib tashlaydi
+create or replace function public.password_changed() returns void
+language sql security definer set search_path = public as $$
+  update members set must_change_password = false where user_id = auth.uid()
+$$;
+
+-- «Ketdim» unutilgan kunlar (pg_cron har 10 daqiqada chaqiradi):
+-- 1) ish tugaganidan 30 daqiqa o'tib Telegram guruhiga eslatma; 2) yarim tundan keyin kunni ish tugash vaqti bilan yopish.
+create or replace function public.run_checkout_tasks() returns void
+language plpgsql security definer set search_path = public as $$
+declare c record; v_list text;
+begin
+  update attendance a
+     set check_out_at = x.out_at, check_out_auto = true, early_leave_minutes = 0,
+         worked_minutes = greatest(0, floor(extract(epoch from (x.out_at - a.check_in_at)) / 60)::int - x.brk)
+    from (
+      select a2.id,
+             greatest(a2.check_in_at, (a2.work_date + s.work_end) at time zone co.timezone) as out_at,
+             case when s.break_start is not null and s.break_end is not null and s.break_end > s.break_start
+                  then greatest(0, floor(extract(epoch from (least(s.work_end, s.break_end)
+                         - greatest((a2.check_in_at at time zone co.timezone)::time, s.break_start))) / 60))::int
+                  else 0 end as brk
+        from attendance a2
+        join companies co on co.id = a2.company_id
+        join member_schedule s on s.member_id = a2.member_id
+       where a2.check_in_at is not null and a2.check_out_at is null
+         and a2.work_date < (now() at time zone co.timezone)::date
+    ) x
+   where a.id = x.id;
+
+  for c in
+    select co.id, co.timezone, co.default_lang
+      from companies co join company_telegram t on t.company_id = co.id
+     where t.enabled and t.notify_forgot_checkout and coalesce(t.bot_token, '') <> '' and coalesce(t.chat_id, '') <> ''
+  loop
+    with due as (
+      select a.id, m.full_name, s.work_end
+        from attendance a
+        join members m on m.id = a.member_id
+        join member_schedule s on s.member_id = a.member_id
+       where a.company_id = c.id and m.status = 'active'
+         and a.work_date = (now() at time zone c.timezone)::date
+         and a.check_in_at is not null and a.check_out_at is null and a.checkout_reminded_at is null
+         and s.work_end < time '23:30'
+         and (now() at time zone c.timezone)::time >= s.work_end + interval '30 minutes'
+         and (a.check_in_at at time zone c.timezone)::time < s.work_end
+    ), marked as (
+      update attendance set checkout_reminded_at = now() where id in (select id from due) returning id
+    )
+    select string_agg(due.full_name || ' (' || to_char(due.work_end, 'HH24:MI') || ')', E'\n• ' order by due.full_name)
+      into v_list from due;
+
+    if v_list is not null then
+      perform tg_send(c.id, case c.default_lang
+        when 'ru' then E'🏁 Не отметили «Ушёл» (рабочий день закончился более 30 мин назад):\n• ' || v_list
+                       || E'\nЕсли не отметить, в полночь день закроется автоматически по времени окончания работы.'
+        when 'en' then E'🏁 Forgot to check out (work ended over 30 min ago):\n• ' || v_list
+                       || E'\nIf not checked out, the day closes automatically at midnight with the scheduled end time.'
+        else E'🏁 «Ketdim» belgilanmagan (ish tugaganiga 30 daqiqadan oshdi):\n• ' || v_list
+             || E'\nBelgilanmasa, yarim tunda kun ish tugash vaqti bilan avtomatik yopiladi.' end);
+    end if;
+  end loop;
+end $$;
+
 -- Ishchi o'z vazifasi holatini o'zgartiradi
 create or replace function public.set_task_status(p_task uuid, p_status text)
 returns void language plpgsql security definer set search_path = public as $$
@@ -697,7 +842,7 @@ returns table (
   late_minutes int, early_leave_minutes int, worked_minutes int,
   check_in_distance int, check_out_distance int, check_in_accuracy double precision,
   check_in_selfie text, note text, work_start time, work_end time,
-  face_status text, face_distance real
+  face_status text, face_distance real, check_out_auto boolean
 )
 language plpgsql stable security definer set search_path = public as $$
 #variable_conflict use_column
@@ -736,7 +881,7 @@ begin
          end,
          a.id, a.check_in_at, a.check_out_at, a.late_minutes, a.early_leave_minutes, a.worked_minutes,
          a.check_in_distance, a.check_out_distance, a.check_in_accuracy, a.check_in_selfie, a.note,
-         mem.work_start, mem.work_end, a.face_status, a.face_distance
+         mem.work_start, mem.work_end, a.face_status, a.face_distance, coalesce(a.check_out_auto, false)
     from mem cross join days
     left join hol on hol.day = days.day
     left join attendance a on a.member_id = mem.id and a.work_date = days.day
@@ -955,7 +1100,8 @@ begin
   end if;
 
   -- Ketish
-  if tg_op = 'UPDATE' and new.check_out_at is not null and old.check_out_at is null and t.notify_checkout then
+  if tg_op = 'UPDATE' and new.check_out_at is not null and old.check_out_at is null and t.notify_checkout
+     and not coalesce(new.check_out_auto, false) then
     v_time := to_char(new.check_out_at at time zone c.timezone, 'HH24:MI');
     v_msg := case v_lang
       when 'ru' then '🏁 ' || v_name || ' ушёл(ла) в ' || v_time
@@ -974,6 +1120,29 @@ end $$;
 drop trigger if exists attendance_notify_trg on public.attendance;
 create trigger attendance_notify_trg after insert or update of check_in_at, check_out_at on public.attendance
   for each row execute function public.attendance_notify();
+
+-- Yangi xodim ro'yxatdan o'tib, tasdiq kutayotganda guruhga xabar
+create or replace function public.member_notify() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare t company_telegram; c companies; v_who text;
+begin
+  if new.status <> 'pending' then return new; end if;
+  select * into t from company_telegram where company_id = new.company_id;
+  if t.company_id is null or not t.enabled or not t.notify_new_member then return new; end if;
+  select * into c from companies where id = new.company_id;
+  v_who := new.full_name || coalesce(', ' || new.phone, '') || coalesce(', ' || new.email, '');
+  perform tg_send(new.company_id, case c.default_lang
+    when 'ru' then '🆕 Новый сотрудник ждёт подтверждения: ' || v_who || E'\nПодтвердите в разделе «Сотрудники».'
+    when 'en' then '🆕 New employee is waiting for approval: ' || v_who || E'\nApprove under Employees.'
+    else '🆕 Yangi xodim tasdiq kutmoqda: ' || v_who || E'\n«Xodimlar» bo''limida tasdiqlang.' end);
+  return new;
+exception when others then
+  raise warning 'member_notify: %', sqlerrm;
+  return new;
+end $$;
+drop trigger if exists member_notify_trg on public.members;
+create trigger member_notify_trg after insert on public.members
+  for each row execute function public.member_notify();
 
 create or replace function public.telegram_test() returns void
 language plpgsql security definer set search_path = public as $$
@@ -1065,6 +1234,7 @@ grant execute on all functions in schema public to authenticated;
 revoke execute on function public.tg_send(uuid, text) from public, anon, authenticated;
 revoke execute on function public.send_daily_summaries() from public, anon, authenticated;
 revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.run_checkout_tasks() from public, anon, authenticated;
 
 -- Ro'yxatdan o'tish sahifasi kodni tekshira olishi uchun
 revoke execute on function public.check_join_code(text) from public;
@@ -1078,6 +1248,8 @@ do $$ begin
   create extension if not exists pg_cron;
   perform cron.unschedule(jobid) from cron.job where jobname = 'kpi-daily-summary';
   perform cron.schedule('kpi-daily-summary', '*/10 * * * *', 'select public.send_daily_summaries()');
+  perform cron.unschedule(jobid) from cron.job where jobname = 'kpi-checkout-tasks';
+  perform cron.schedule('kpi-checkout-tasks', '*/10 * * * *', 'select public.run_checkout_tasks()');
 exception when others then
   raise notice 'pg_cron sozlanmadi: %', sqlerrm;
 end $$;

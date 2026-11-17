@@ -153,6 +153,12 @@ Sozlamalar → **Kelishda selfi talab qilinsin** va **Yuzni namunaga solishtiris
 
 Yangi versiya chiqqanda Supabase → **SQL Editor** da yangilangan `supabase/schema.sql` ni to'liq qayta ishga tushiring. Fayl mavjud ma'lumotlarni o'chirmaydi, faqat yangi ustun va funksiyalarni qo'shadi.
 
+**Tartib muhim: avval baza, keyin sayt.** Sayt `main` ga tushishi bilan Netlify uni darhol yangilaydi. Agar baza hali eski bo'lsa, yangi sayt yo'q funksiyani chaqiradi va xodimlar xato ko'radi (2026-11-17 dagi «Keldim» xatosi shundan bo'lgan). Shuning uchun:
+
+1. `schema.sql` dagi o'zgarishlar eski sayt bilan ham ishlaydigan qilib yoziladi (faqat yangi ustun, yangi funksiya, standart qiymatlar).
+2. Avval bazaga qo'llanadi, keyin sayt `main` ga birlashtiriladi.
+3. Sayt bazaning versiyasini tekshiradi: `schema_version()` saytdagi `REQUIRED_DB` dan (`web/src/pages/admin/AdminShell.jsx`) kichik bo'lsa, adminga qizil ogohlantirish chiqadi. Bazaga o'zgarish kiritilganda ikkalasini birga oshiring.
+
 ## 7. Mobil ilova uchun tayyor API
 
 Keyingi bosqichda React Native yoki Flutter ilovasi yozilsa, u xuddi shu Supabase funksiyalarini chaqiradi.

@@ -145,6 +145,7 @@ export default function CheckIn({ embedded }) {
   else if (checkedIn) {
     state = att.status === 'late' ? 'late' : 'ontime'
     msg = att.status === 'late' ? t('today.late_msg', { n: att.late_minutes }) : t('today.ontime_msg')
+    if (nowM > toMin(s.work_end)) msg = t('today.leave_reminder')
   } else if (!today.is_workday) { state = 'off'; msg = today.holiday ? t('checkin.holiday', { name: today.holiday }) : t('checkin.day_off') }
   else if (nowM < ws) { state = 'before'; msg = t('today.starts_in', { d: fmtMinutes(ws - nowM, t) }) }
   else if (nowM <= graceEnd) { state = 'before'; msg = t('today.grace_left', { time: fromMin(graceEnd) }) }
