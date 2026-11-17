@@ -483,4 +483,6 @@ export default {
   'company_rejected.title': 'Ariza tasdiqlanmadi',
   'company_rejected.text': "«{company}» kompaniyasi hozircha faol emas. Savollar bo'lsa, tizim egasiga murojaat qiling.",
   'err.OWN_COMPANY': "O'zingiz a'zo bo'lgan kompaniyaning holatini o'zgartirib bo'lmaydi.",
+  'tg.send_photos': "Xabarga xodimning selfisini qo'shish",
+  'tg.send_photos_hint': "Kelish va kechikish xabari selfi bilan keladi; yuz mos kelmasa — namuna va bugungi selfi. Guruhdagi hamma rasmni ko'radi.",
 }

@@ -469,4 +469,6 @@ export default {
   'company_rejected.title': 'Request not approved',
   'company_rejected.text': '“{company}” is not active yet. For questions, contact the system owner.',
   'err.OWN_COMPANY': 'You cannot change the status of a company you belong to.',
+  'tg.send_photos': "Attach the employee's selfie",
+  'tg.send_photos_hint': 'Check-in and late messages come with the selfie; on a face mismatch, the reference and today’s selfie. Everyone in the group sees the photos.',
 }

@@ -204,12 +204,32 @@ create table if not exists public.platform_settings (
 );
 
 -- =====================================================================
+--  v6: TELEGRAM XABARLARIDA XODIM SELFISI
+-- =====================================================================
+
+alter table public.company_telegram  add column if not exists send_photos   boolean not null default true;
+alter table public.platform_settings add column if not exists functions_url text;  -- https://<ref>.supabase.co/functions/v1
+
+-- Rasmli xabarlar navbati: server funksiyasi (tg-photo) rasmni yopiq ombordan olib, Telegram'ga yuboradi.
+-- token — faqat baza va funksiya biladi; xabar bir marta yuboriladi (sent_at).
+create table if not exists public.tg_outbox (
+  id          bigint generated always as identity primary key,
+  token       uuid not null default gen_random_uuid(),
+  company_id  uuid not null references public.companies(id) on delete cascade,
+  caption     text not null,
+  photo_paths text[] not null default '{}',
+  created_at  timestamptz not null default now(),
+  sent_at     timestamptz,
+  result      text
+);
+
+-- =====================================================================
 --  YORDAMCHI FUNKSIYALAR
 -- =====================================================================
 
 -- Ilova bazaning versiyasini tekshiradi (sayt yangi, baza eski bo'lib qolmasligi uchun)
 create or replace function public.schema_version() returns int
-language sql immutable as $$ select 5 $$;
+language sql immutable as $$ select 6 $$;
 
 create or replace function public.my_company_id() returns uuid
 language sql stable security definer set search_path = public as $$
@@ -290,6 +310,7 @@ alter table public.ratings          enable row level security;
 alter table public.face_profiles    enable row level security;
 alter table public.platform_admins  enable row level security;
 alter table public.platform_settings enable row level security;
+alter table public.tg_outbox        enable row level security;
 
 -- Yuz namunalarini faqat admin ko'radi va o'chiradi (qayta olish uchun). Yozish — faqat enroll_face() orqali.
 drop policy if exists face_admin_select on public.face_profiles;
@@ -857,8 +878,17 @@ $$;
 -- 1) ish tugaganidan 30 daqiqa o'tib Telegram guruhiga eslatma; 2) yarim tundan keyin kunni ish tugash vaqti bilan yopish.
 create or replace function public.run_checkout_tasks() returns void
 language plpgsql security definer set search_path = public as $$
-declare c record; v_list text;
+declare c record; o record; v_list text;
 begin
+  -- Rasmli xabar 3 daqiqada yuborilmagan bo'lsa (funksiya ishlamadi) — matnini yuboramiz, xabar yo'qolmasin
+  for o in
+    update tg_outbox set sent_at = now(), result = 'fallback'
+     where sent_at is null and created_at < now() - interval '3 minutes'
+    returning company_id, caption
+  loop
+    perform tg_send(o.company_id, o.caption);
+  end loop;
+
   update attendance a
      set check_out_at = x.out_at, check_out_auto = true, early_leave_minutes = 0,
          worked_minutes = greatest(0, floor(extract(epoch from (x.out_at - a.check_in_at)) / 60)::int - x.brk)
@@ -1150,6 +1180,35 @@ exception when others then
 end $$;
 revoke execute on function public.tg_send(uuid, text) from public, anon, authenticated;
 
+-- Rasmli xabar: rasm bo'lmasa, o'chirilgan bo'lsa yoki funksiya manzili yo'q bo'lsa — oddiy matn
+create or replace function public.tg_send_photo(p_company uuid, p_text text, p_paths text[]) returns void
+language plpgsql security definer set search_path = public as $$
+declare t company_telegram; v_url text; v_id bigint; v_token uuid; v_paths text[];
+begin
+  select * into t from company_telegram where company_id = p_company;
+  if t.company_id is null or not t.enabled or coalesce(t.bot_token, '') = '' or coalesce(t.chat_id, '') = '' then
+    return;
+  end if;
+  v_paths := array(select x from unnest(p_paths) as x where coalesce(x, '') <> '');
+  select functions_url into v_url from platform_settings limit 1;
+  if not t.send_photos or cardinality(v_paths) = 0 or coalesce(v_url, '') = '' then
+    perform tg_send(p_company, p_text);
+    return;
+  end if;
+  insert into tg_outbox (company_id, caption, photo_paths) values (p_company, p_text, v_paths)
+  returning id, token into v_id, v_token;
+  perform net.http_post(
+    url := v_url || '/tg-photo',
+    body := jsonb_build_object('id', v_id, 'token', v_token),
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    timeout_milliseconds := 20000
+  );
+exception when others then
+  raise warning 'tg_send_photo: %', sqlerrm;
+  perform tg_send(p_company, p_text);
+end $$;
+revoke execute on function public.tg_send_photo(uuid, text, text[]) from public, anon, authenticated;
+
 create or replace function public.attendance_notify() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
@@ -1175,11 +1234,11 @@ begin
         when 'en' then '✅ ' || v_name || ' checked in at ' || v_time
         else '✅ ' || v_name || ' keldi: ' || v_time end;
     end if;
-    if v_msg is not null then perform tg_send(new.company_id, v_msg); end if;
+    if v_msg is not null then perform tg_send_photo(new.company_id, v_msg, array[new.check_in_selfie]); end if;
 
     -- Yuz mos kelmasa — har doim ogohlantirish
     if new.face_status in ('mismatch', 'no_face') then
-      perform tg_send(new.company_id, case v_lang
+      perform tg_send_photo(new.company_id, case v_lang
         when 'ru' then '⚠️ ' || v_name || ': ' || case when new.face_status = 'no_face' then 'лицо на селфи не обнаружено'
                        else 'лицо не совпало с образцом (сходство ' || greatest(0, round((1 - new.face_distance) * 100)) || '%)' end
                        || '. Проверьте селфи в разделе «Посещаемость».'
@@ -1188,7 +1247,8 @@ begin
                        || '. Check the selfie under Attendance.'
         else '⚠️ ' || v_name || ': ' || case when new.face_status = 'no_face' then 'selfida yuz aniqlanmadi'
                        else 'yuz namunaga mos kelmadi (o''xshashlik ' || greatest(0, round((1 - new.face_distance) * 100)) || '%)' end
-                       || '. «Davomat» bo''limida selfini tekshiring.' end);
+                       || '. «Davomat» bo''limida selfini tekshiring.' end,
+        array[(select f.photo_path from face_profiles f where f.member_id = new.member_id), new.check_in_selfie]);
     end if;
   end if;
 
@@ -1322,6 +1382,9 @@ grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant select on public.member_schedule to authenticated;
 grant execute on all functions in schema public to authenticated;
+-- tg-photo server funksiyasi (service_role) uchun minimal ruxsatlar
+grant select, update on public.tg_outbox to service_role;
+grant select on public.company_telegram to service_role;
 
 -- Ichki funksiyalar foydalanuvchiga yopiq
 revoke execute on function public.tg_send(uuid, text) from public, anon, authenticated;
