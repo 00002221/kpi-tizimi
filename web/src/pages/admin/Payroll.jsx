@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
-import { Alert, Button, Empty, Field, Modal, PageHeader, Spinner } from '../../components/ui.jsx'
+import { Alert, Button, Empty, Modal, PageHeader, Spinner } from '../../components/ui.jsx'
 import KpiBreakdown from '../../components/KpiBreakdown.jsx'
 import { exportXlsx } from '../../lib/excel.js'
 import { errorText, fmtMoney, fmtNum, todayIn } from '../../lib/utils.js'
+import { MonthPicker } from '../../components/DatePickers.jsx'
 
 function kpiClass(k) {
   if (k == null) return ''
@@ -69,13 +70,41 @@ export default function Payroll() {
         <Button variant="secondary" onClick={doExport} disabled={!rows?.length}>{t('common.export_excel')}</Button>
       </PageHeader>
       <div className="toolbar">
-        <Field className="field-inline" label={t('common.month')}>
-          <input type="month" value={month} max={thisMonth} onChange={(e) => e.target.value && setMonth(e.target.value)} />
-        </Field>
+        <MonthPicker value={month} max={thisMonth} onChange={setMonth} />
       </div>
       {error && <Alert kind="error">{error}</Alert>}
-      {!rows ? <Spinner /> : rows.length === 0 ? <Empty title={t('att.no_employees')} /> : (
-        <div className="table-wrap">
+      {!rows ? <Spinner /> : rows.length === 0 ? <Empty title={t('att.no_employees')} /> : (<>
+        <div className="m-list only-mobile">
+          {rows.map((r) => {
+            const ded = Number(r.absence_deduction) + Number(r.late_fine) + Number(r.early_fine)
+            return (
+              <button key={r.member_id} type="button" className="m-card m-card-col" onClick={() => setDetail(r)}>
+                <div className="m-card-row">
+                  <div className="m-card-main">
+                    <div className="m-card-title">{r.full_name}</div>
+                    {r.position && <div className="m-card-sub">{r.position}</div>}
+                  </div>
+                  <span className={`kpi-pill ${kpiClass(r.kpi)}`}>{r.kpi == null ? '—' : fmtNum(r.kpi, 1)}</span>
+                </div>
+                <div className="m-card-money">
+                  <span className="muted small">{t('pay.total')}</span>
+                  <b>{fmtMoney(r.salary, cur)}</b>
+                </div>
+                <div className="m-card-facts">
+                  <span>{t('kpi.attendance')} <b>{r.attendance_score == null ? '—' : fmtNum(r.attendance_score, 1)}</b></span>
+                  <span>{t('kpi.tasks')} <b>{r.task_score == null ? '—' : fmtNum(r.task_score, 1)}</b></span>
+                  <span>{t('kpi.rating')} <b>{r.rating ?? '—'}</b></span>
+                  {ded > 0 && <span className="text-danger">−{fmtMoney(ded, cur)}</span>}
+                </div>
+              </button>
+            )
+          })}
+          <div className="m-card m-card-total">
+            <span>{t('pay.sum')}</span>
+            <b>{fmtMoney(total('salary'), cur)}</b>
+          </div>
+        </div>
+        <div className="table-wrap only-desktop">
           <table className="table">
             <thead>
               <tr>
@@ -119,7 +148,7 @@ export default function Payroll() {
             </tfoot>
           </table>
         </div>
-      )}
+      </>)}
 
       <section className="panel formula">
         <h2>{t('pay.how_title')}</h2>

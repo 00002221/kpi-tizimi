@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
-import { Alert, Button, LangSwitch, Modal, Spinner, useToast } from '../../components/ui.jsx'
+import { Alert, Button, Modal, Spinner, useToast } from '../../components/ui.jsx'
 import CameraCapture from '../../components/CameraCapture.jsx'
 import FaceEnroll from '../../components/FaceEnroll.jsx'
 import SlideConfirm from '../../components/SlideConfirm.jsx'
@@ -149,7 +149,11 @@ export default function CheckIn({ embedded }) {
   } else if (!today.is_workday) { state = 'off'; msg = today.holiday ? t('checkin.holiday', { name: today.holiday }) : t('checkin.day_off') }
   else if (nowM < ws) { state = 'before'; msg = t('today.starts_in', { d: fmtMinutes(ws - nowM, t) }) }
   else if (nowM <= graceEnd) { state = 'before'; msg = t('today.grace_left', { time: fromMin(graceEnd) }) }
-  else if (nowM <= we) { state = 'missing'; msg = t('today.late_now', { d: fmtMinutes(nowM - ws, t) }) }
+  else if (nowM <= we) {
+    state = 'missing'
+    // Ikki soatdan oshsa, «8 soat 48 daq kechikyapsiz» o'rniga oddiy eslatma
+    msg = nowM - ws > 120 ? t('today.not_yet_long', { time: fromMin(ws) }) : t('today.late_now', { d: fmtMinutes(nowM - ws, t) })
+  }
   else { state = 'missing'; msg = t('today.not_checked') }
 
   const inside = pos && pos.distance != null && pos.distance <= office.radius_m
@@ -160,7 +164,6 @@ export default function CheckIn({ embedded }) {
       <section className={`hero hero-${state}`}>
         <div className="hero-top">
           <span className="hero-company">{company?.name}</span>
-          {!embedded && <LangSwitch />}
         </div>
         <div className="hero-date">{longDate(today.date, lang)}</div>
         <div className="hero-clock">{clock}</div>
@@ -213,8 +216,8 @@ export default function CheckIn({ embedded }) {
       <div className="today-actions">
         {!checkedIn && !needsFace && (
           <>
-            <SlideConfirm label={t('today.slide_in')} busyLabel={busyLabel} loading={busy} disabled={office.lat == null} onConfirm={() => start('in')} />
             <p className="slide-hint">{office.require_selfie ? t('today.hint_selfie') : t('today.hint_gps')}</p>
+            <SlideConfirm label={t('today.slide_in')} busyLabel={busyLabel} loading={busy} disabled={office.lat == null} onConfirm={() => start('in')} />
           </>
         )}
         {checkedIn && !checkedOut && (

@@ -241,7 +241,6 @@ export default {
 
   'rate.sub': 'Each month, rate every employee from 1 to 10. The rating is part of their KPI.',
   'rate.comment_ph': 'Comment (optional)',
-  'rate.save_n': 'Save ({n})',
 
   'set.company': 'Company',
   'set.default_lang': 'Main language',
@@ -404,7 +403,7 @@ export default {
   'today.hint_gps': 'Location is checked',
   'today.sending': 'Sending…',
   'att.who_when': 'Who arrived when',
-  'att.who_when_hint': 'The blue line is the start time. Tap a row for details.',
+  'att.who_when_hint': 'The blue line is the start time; the striped zone is the grace period. Tap a row for details.',
   'set.presets': 'Presets',
   'set.has_break': 'Lunch break',
   'set.unsaved': '{n} unsaved change(s)',
@@ -439,4 +438,11 @@ export default {
   'att.auto_out_hint': 'Check-out was missing: the day was closed automatically at the scheduled end time. If you know the actual time, enter it below.',
   'att.checkout_time': 'Check-out time',
   'att.checkout_time_hint': 'Leave empty to mark check-out as missing',
+  'common.prev': 'Previous',
+  'common.next': 'Next',
+  'emp.invite_code': 'Invite code',
+  'emp.invite_more': 'Details',
+  'nav.att_s': 'Attendance',
+  'today.not_yet_long': "You haven't checked in yet. Work started at {time}.",
+  'att.scroll_hint': 'Swipe the table sideways to see all days →',
 }

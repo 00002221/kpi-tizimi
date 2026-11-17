@@ -67,7 +67,7 @@ export default function AdminShell() {
   ]
   const bottom = [
     { to: '/', label: t('nav.home_s'), icon: I.home, end: true },
-    { to: '/attendance', label: t('nav.attendance'), icon: I.clock },
+    { to: '/attendance', label: t('nav.att_s'), icon: I.clock },
     { to: '/employees', label: t('nav.employees'), icon: I.people },
     { to: '/payroll', label: 'KPI', icon: I.chart },
   ]
@@ -126,11 +126,11 @@ export default function AdminShell() {
       <nav className="admin-bottomnav" aria-label={t('nav.menu')}>
         {bottom.map((b) => (
           <NavLink key={b.to} to={b.to} end={b.end} className={({ isActive }) => (isActive ? 'active' : undefined)}>
-            <Svg d={b.icon} />{b.label}
+            <Svg d={b.icon} /><span>{b.label}</span>
           </NavLink>
         ))}
         <button className={moreActive ? 'active' : undefined} onClick={() => setMore(true)} aria-haspopup="dialog">
-          <Svg d={I.more} />{t('nav.more')}
+          <Svg d={I.more} /><span>{t('nav.more')}</span>
         </button>
       </nav>
 

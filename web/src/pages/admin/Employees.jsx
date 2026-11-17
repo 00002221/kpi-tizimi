@@ -8,13 +8,26 @@ import useMembers from './useMembers.js'
 import { WeekdayPicker } from './Settings.jsx'
 import TimeInput from '../../components/TimeInput.jsx'
 
-export function InvitePanel() {
+export function InvitePanel({ compact }) {
   const { t } = useI18n()
   const { company } = useAuth()
   const toast = useToast()
+  const [open, setOpen] = useState(false)
   const link = `${window.location.origin}${window.location.pathname}#/join?code=${company.join_code}`
   const copy = async (text) => {
     try { await navigator.clipboard.writeText(text); toast(t('common.copied')) } catch { window.prompt('', text) }
+  }
+  // Xodimlar allaqachon bor bo'lsa — bir qatorli ixcham blok, bosilsa to'liq ochiladi
+  if (compact && !open) {
+    return (
+      <section className="panel invite-compact">
+        <span className="muted">{t('emp.invite_code')}</span>
+        <b className="code-mid">{company.join_code}</b>
+        <div className="toolbar-spacer" />
+        <Button size="sm" variant="secondary" onClick={() => copy(link)}>{t('emp.copy_link')}</Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>{t('emp.invite_more')}</Button>
+      </section>
+    )
   }
   return (
     <section className="panel invite">
@@ -77,7 +90,7 @@ export default function Employees() {
   return (
     <div className="stack-lg">
       <PageHeader title={t('nav.employees')} />
-      <InvitePanel />
+      <InvitePanel compact={groups.active.length > 1} />
       {error && <Alert kind="error">{errorText(error, t)}</Alert>}
       <Tabs value={tab} onChange={setTab} items={[
         { value: 'active', label: t('emp.tab_active'), count: groups.active.length },
@@ -86,8 +99,49 @@ export default function Employees() {
       ]} />
       {list.length === 0 ? (
         <Empty title={tab === 'pending' ? t('emp.empty_pending') : t('emp.empty')} />
-      ) : (
-        <div className="table-wrap">
+      ) : (<>
+        <div className="m-list only-mobile">
+          {list.map((m) => {
+            const thumb = faces[m.id]?.url
+              ? <img src={faces[m.id].url} alt="" className="thumb" />
+              : company.face_check ? <span className="thumb thumb-empty" title={t('face.none')}>?</span> : <span className="m-avatar" aria-hidden="true">{m.full_name.trim().charAt(0).toUpperCase()}</span>
+            const info = (
+              <>
+                {thumb}
+                <div className="m-card-main">
+                  <div className="m-card-title">{m.full_name}{m.id === me.id ? ` (${t('emp.you')})` : ''}</div>
+                  <div className="m-card-sub">{[m.position, m.role === 'admin' ? t('role.admin') : null].filter(Boolean).join(', ') || m.email}</div>
+                  <div className="m-card-sub">{m.phone || (m.position ? m.email : '')}</div>
+                  {(m.custom_schedule || !m.track_attendance) && (
+                    <div className="m-card-tags">
+                      {m.custom_schedule && <span className="tag">{hhmm(m.work_start || company.work_start)}–{hhmm(m.work_end || company.work_end)}</span>}
+                      {!m.track_attendance && <span className="tag">{t('emp.not_tracked')}</span>}
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+            return m.status === 'pending' ? (
+              <div key={m.id} className="m-card m-card-col">
+                <div className="m-card-row">{info}</div>
+                <p className="muted small" style={{ margin: 0 }}>{t('emp.joined', { date: fmtDate(m.created_at) })}</p>
+                <div className="m-card-actions">
+                  <Button onClick={() => approve(m)}>{t('emp.approve')}</Button>
+                  <Button variant="danger-ghost" onClick={() => reject(m)}>{t('emp.reject')}</Button>
+                </div>
+              </div>
+            ) : (
+              <button key={m.id} type="button" className="m-card" onClick={() => setEdit(m)} aria-label={`${m.full_name}: ${t('common.edit')}`}>
+                {info}
+                <div className="m-card-side">
+                  <div className="m-card-num">{fmtMoney(m.base_salary, company.currency)}</div>
+                  <svg className="m-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        <div className="table-wrap only-desktop">
           <table className="table">
             <thead>
               <tr>
@@ -133,7 +187,7 @@ export default function Employees() {
             </tbody>
           </table>
         </div>
-      )}
+      </>)}
       {edit && (
         <EditMember
           m={edit}

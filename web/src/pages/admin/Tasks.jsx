@@ -6,6 +6,7 @@ import { Alert, Button, Empty, Field, Modal, PageHeader, Spinner, useToast, useC
 import { cls, errorText, fmtDate, monthEnd, todayIn } from '../../lib/utils.js'
 import { TaskStatus } from '../employee/MyTasks.jsx'
 import useMembers from './useMembers.js'
+import { MonthPicker } from '../../components/DatePickers.jsx'
 
 export default function Tasks() {
   const { t } = useI18n()
@@ -49,9 +50,7 @@ export default function Tasks() {
         <Button onClick={() => setEdit({})} disabled={!active.length}>{t('task.new')}</Button>
       </PageHeader>
       <div className="toolbar">
-        <Field className="field-inline" label={t('common.month')}>
-          <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} />
-        </Field>
+        <MonthPicker value={month} onChange={setMonth} />
         <Field className="field-inline" label={t('col.employee')}>
           <select value={who} onChange={(e) => setWho(e.target.value)}>
             <option value="">{t('common.all')}</option>
@@ -68,8 +67,33 @@ export default function Tasks() {
       {error && <Alert kind="error">{error}</Alert>}
       {!tasks ? <Spinner /> : tasks.length === 0 ? (
         <Empty title={t('task.empty_admin')} action={active.length ? <Button onClick={() => setEdit({})}>{t('task.new')}</Button> : null} />
-      ) : (
-        <div className="table-wrap">
+      ) : (<>
+        <div className="m-list only-mobile">
+          {tasks.map((x) => {
+            const overdue = x.status !== 'done' && x.due_date < today
+            return (
+              <div key={x.id} className={cls('m-card m-card-col', overdue && 'm-card-alert')}>
+                <div className="m-card-row">
+                  <div className="m-card-main">
+                    <div className="m-card-title">{x.title}</div>
+                    <div className="m-card-sub">{nameOf[x.assignee_id] || '—'}</div>
+                  </div>
+                  <TaskStatus status={x.status} />
+                </div>
+                {x.description && <div className="muted small clamp">{x.description}</div>}
+                <div className="m-card-facts">
+                  <span className={cls(overdue && 'text-danger')}>{t('task.due')} <b>{fmtDate(x.due_date)}</b>{overdue ? ` (${t('task.overdue_s')})` : ''}</span>
+                  <span>{t('task.points')} <b>{x.points}</b></span>
+                </div>
+                <div className="m-card-actions">
+                  <Button variant="secondary" onClick={() => setEdit(x)}>{t('common.edit')}</Button>
+                  <Button variant="danger-ghost" onClick={() => remove(x)}>{t('common.delete')}</Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="table-wrap only-desktop">
           <table className="table">
             <thead>
               <tr>
@@ -97,7 +121,7 @@ export default function Tasks() {
             </tbody>
           </table>
         </div>
-      )}
+      </>)}
       {edit && <TaskForm task={edit} members={active} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
     </div>
   )
