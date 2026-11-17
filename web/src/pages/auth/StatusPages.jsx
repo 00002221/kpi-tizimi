@@ -133,3 +133,31 @@ export function ForceNewPassword() {
     </AuthLayout>
   )
 }
+
+// Yangi kompaniya: platforma egasi tasdiqlashini kutadi (har 30 soniyada o'zi tekshiradi)
+export function CompanyPending() {
+  const { t } = useI18n()
+  const { company, refresh, signOut } = useAuth()
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    const id = setInterval(() => refresh(), 30000)
+    return () => clearInterval(id)
+  }, [refresh])
+  const check = async () => { setBusy(true); await refresh(); setBusy(false) }
+  return (
+    <AuthLayout title={t('company_pending.title')} footer={<button className="link-btn" onClick={signOut}>{t('common.logout')}</button>}>
+      <p>{t('company_pending.text', { company: company?.name || '' })}</p>
+      <Button onClick={check} loading={busy} variant="secondary">{t('pending.check')}</Button>
+    </AuthLayout>
+  )
+}
+
+export function CompanyRejected() {
+  const { t } = useI18n()
+  const { company, signOut } = useAuth()
+  return (
+    <AuthLayout title={t('company_rejected.title')} footer={<button className="link-btn" onClick={signOut}>{t('common.logout')}</button>}>
+      <Alert kind="warn">{t('company_rejected.text', { company: company?.name || '' })}</Alert>
+    </AuthLayout>
+  )
+}

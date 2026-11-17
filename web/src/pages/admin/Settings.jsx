@@ -223,7 +223,7 @@ function TelegramSettings() {
 
   useEffect(() => {
     supabase.from('company_telegram').select('*').eq('company_id', company.id).maybeSingle().then(({ data }) => {
-      setF(data || { company_id: company.id, enabled: false, notify_late: true, notify_checkin: false, notify_checkout: false, daily_summary: true, summary_time: '10:00', bot_token: '', chat_id: '', notify_forgot_checkout: true, notify_new_member: true })
+      setF(data || { company_id: company.id, enabled: false, notify_late: true, notify_checkin: false, notify_checkout: false, daily_summary: true, summary_time: '10:00', bot_token: '', chat_id: '', notify_forgot_checkout: true, notify_new_member: true, send_photos: true })
     })
   }, [company.id])
 
@@ -237,6 +237,7 @@ function TelegramSettings() {
       enabled: f.enabled, notify_late: f.notify_late, notify_checkin: f.notify_checkin,
       notify_checkout: f.notify_checkout, daily_summary: f.daily_summary, summary_time: hhmm(f.summary_time),
       notify_forgot_checkout: f.notify_forgot_checkout ?? true, notify_new_member: f.notify_new_member ?? true,
+      send_photos: f.send_photos ?? true,
     }
     const { error } = await supabase.from('company_telegram').upsert(payload, { onConflict: 'company_id' })
     setBusy(false)
@@ -274,6 +275,7 @@ function TelegramSettings() {
         <Toggle checked={f.notify_checkout} onChange={(v) => set('notify_checkout', v)} label={t('tg.notify_checkout')} />
         <Toggle checked={f.notify_forgot_checkout ?? true} onChange={(v) => set('notify_forgot_checkout', v)} label={t('tg.notify_forgot_checkout')} hint={t('tg.notify_forgot_checkout_hint')} />
         <Toggle checked={f.notify_new_member ?? true} onChange={(v) => set('notify_new_member', v)} label={t('tg.notify_new_member')} />
+        <Toggle checked={f.send_photos ?? true} onChange={(v) => set('send_photos', v)} label={t('tg.send_photos')} hint={t('tg.send_photos_hint')} />
         <Toggle checked={f.daily_summary} onChange={(v) => set('daily_summary', v)} label={t('tg.daily_summary')} hint={t('tg.daily_summary_hint')} />
         {f.daily_summary && (
           <Field className="field-inline" label={t('tg.summary_time')}>

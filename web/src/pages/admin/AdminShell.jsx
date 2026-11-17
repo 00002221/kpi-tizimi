@@ -11,6 +11,7 @@ import Tasks from './Tasks.jsx'
 import Ratings from './Ratings.jsx'
 import Payroll from './Payroll.jsx'
 import Settings from './Settings.jsx'
+import Platform from './Platform.jsx'
 import CheckIn from '../employee/CheckIn.jsx'
 import Profile from '../employee/Profile.jsx'
 
@@ -26,9 +27,10 @@ const I = {
   pin: <><path d="M12 21s-7-7.2-7-12a7 7 0 0 1 14 0c0 4.8-7 12-7 12z" /><circle cx="12" cy="9" r="2.5" /></>,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></>,
   out: <path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l-5-5 5-5M5 12h11" />,
+  building: <path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M2 21h20M8 8h3M8 12h3M8 16h3" />,
 }
 // Sayt kutayotgan baza versiyasi (supabase/schema.sql dagi schema_version() bilan bir xil bo'lsin)
-export const REQUIRED_DB = 4
+export const REQUIRED_DB = 6
 
 // Sayt yangilanib, baza eski qolsa — adminga darhol ko'rinadigan ogohlantirish
 function DbVersionWarning() {
@@ -49,6 +51,8 @@ export default function AdminShell() {
   const { t } = useI18n()
   const { company, member, signOut } = useAuth()
   const [more, setMore] = useState(false)
+  const [isPlatform, setIsPlatform] = useState(false)
+  useEffect(() => { supabase.rpc('is_platform_admin').then(({ data }) => setIsPlatform(Boolean(data))) }, [])
   const loc = useLocation()
   useEffect(() => setMore(false), [loc.pathname])
 
@@ -60,6 +64,7 @@ export default function AdminShell() {
     { to: '/ratings', label: t('nav.ratings') },
     { to: '/payroll', label: t('nav.payroll') },
     { to: '/settings', label: t('nav.settings') },
+    ...(isPlatform ? [{ to: '/platform', label: t('nav.platform') }] : []),
   ]
   const personal = [
     { to: '/me', label: t('nav.my_checkin') },
@@ -75,6 +80,7 @@ export default function AdminShell() {
     { to: '/tasks', label: t('nav.tasks'), icon: I.tasks },
     { to: '/ratings', label: t('nav.ratings'), icon: I.star },
     { to: '/settings', label: t('nav.settings'), icon: I.gear },
+    ...(isPlatform ? [{ to: '/platform', label: t('nav.platform'), icon: I.building }] : []),
     { to: '/me', label: t('nav.my_checkin'), icon: I.pin },
     { to: '/profile', label: t('nav.profile'), icon: I.user },
   ]
@@ -116,6 +122,7 @@ export default function AdminShell() {
             <Route path="/ratings" element={<Ratings />} />
             <Route path="/payroll" element={<Payroll />} />
             <Route path="/settings" element={<Settings />} />
+            {isPlatform && <Route path="/platform" element={<Platform />} />}
             <Route path="/me" element={<div className="narrow"><CheckIn embedded /></div>} />
             <Route path="/profile" element={<div className="narrow"><Profile /></div>} />
             <Route path="*" element={<Dashboard />} />
