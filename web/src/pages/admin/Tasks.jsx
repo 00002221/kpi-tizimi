@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
-import { Alert, Button, Empty, Field, Modal, PageHeader, Spinner, useToast } from '../../components/ui.jsx'
+import { Alert, Button, Empty, Field, Modal, PageHeader, Spinner, useToast, useConfirm } from '../../components/ui.jsx'
 import { cls, errorText, fmtDate, monthEnd, todayIn } from '../../lib/utils.js'
 import { TaskStatus } from '../employee/MyTasks.jsx'
 import useMembers from './useMembers.js'
@@ -11,6 +11,7 @@ export default function Tasks() {
   const { t } = useI18n()
   const { company } = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const today = todayIn(company.timezone)
   const { members } = useMembers()
   const [month, setMonth] = useState(today.slice(0, 7))
@@ -36,7 +37,7 @@ export default function Tasks() {
   const nameOf = useMemo(() => Object.fromEntries((members || []).map((m) => [m.id, m.full_name])), [members])
 
   const remove = async (task) => {
-    if (!window.confirm(t('task.delete_confirm'))) return
+    if (!await confirm(t('task.delete_confirm'))) return
     const { error } = await supabase.from('tasks').delete().eq('id', task.id)
     if (error) return toast(errorText(error, t), 'error')
     load()

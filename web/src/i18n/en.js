@@ -11,6 +11,8 @@ export default {
   'common.month': 'Month',
   'common.all': 'All',
   'common.export_excel': 'Export to Excel',
+  'common.confirm_title': 'Please confirm',
+  'common.confirm_yes': 'Yes, continue',
   'common.copied': 'Copied',
   'unit.min': '{n} min',
   'unit.hmin': '{h} h {m} min',

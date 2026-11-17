@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
-import { Alert, Button, Empty, Field, Modal, PageHeader, Spinner, Tabs, Toggle, useToast } from '../../components/ui.jsx'
+import { Alert, Button, Empty, Field, Modal, PageHeader, Spinner, Tabs, Toggle, useToast, useConfirm } from '../../components/ui.jsx'
 import { errorText, fmtDate, fmtMoney, hhmm } from '../../lib/utils.js'
 import useMembers from './useMembers.js'
 import { WeekdayPicker } from './Settings.jsx'
@@ -36,6 +36,7 @@ export default function Employees() {
   const { t } = useI18n()
   const { company, member: me, refresh: refreshMe } = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const { members, error, reload } = useMembers()
   const [tab, setTab] = useState('active')
   const [edit, setEdit] = useState(null)
@@ -56,7 +57,7 @@ export default function Employees() {
     setEdit({ ...m, status: 'active' })
   }
   const reject = async (m) => {
-    if (!window.confirm(t('emp.reject_confirm', { name: m.full_name }))) return
+    if (!await confirm(t('emp.reject_confirm', { name: m.full_name }))) return
     const { error } = await supabase.from('members').delete().eq('id', m.id)
     if (error) return toast(errorText(error, t), 'error')
     reload()
@@ -132,6 +133,7 @@ function EditMember({ m, onClose, onSaved }) {
   const { t } = useI18n()
   const { company, member: me } = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const [f, setF] = useState({
     full_name: m.full_name, phone: m.phone || '', position: m.position || '',
     role: m.role, status: m.status, base_salary: m.base_salary ?? 0, start_date: m.start_date,
@@ -168,7 +170,7 @@ function EditMember({ m, onClose, onSaved }) {
   }
 
   const remove = async () => {
-    if (!window.confirm(t('emp.delete_confirm', { name: m.full_name }))) return
+    if (!await confirm(t('emp.delete_confirm', { name: m.full_name }))) return
     const { error } = await supabase.from('members').delete().eq('id', m.id)
     if (error) return toast(errorText(error, t), 'error')
     onSaved()

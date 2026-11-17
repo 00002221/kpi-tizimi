@@ -169,3 +169,33 @@ export function ToastProvider({ children }) {
 }
 
 export const useToast = () => useContext(ToastCtx)
+
+// ---------- Tasdiqlash oynasi (brauzerning confirm() o'rniga — telefonlarda ham ishlaydi) ----------
+const ConfirmCtx = createContext(() => Promise.resolve(false))
+
+export function ConfirmProvider({ children }) {
+  const { t } = useI18n()
+  const [state, setState] = useState(null) // { text, danger, resolve }
+  const ask = useCallback((text, { danger = true } = {}) => new Promise((resolve) => setState({ text, danger, resolve })), [])
+  const close = (v) => { state?.resolve(v); setState(null) }
+  return (
+    <ConfirmCtx.Provider value={ask}>
+      {children}
+      <Modal
+        open={Boolean(state)}
+        onClose={() => close(false)}
+        title={t('common.confirm_title')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => close(false)}>{t('common.cancel')}</Button>
+            <Button variant={state?.danger ? 'danger' : 'primary'} onClick={() => close(true)}>{t('common.confirm_yes')}</Button>
+          </>
+        }
+      >
+        <p>{state?.text}</p>
+      </Modal>
+    </ConfirmCtx.Provider>
+  )
+}
+
+export const useConfirm = () => useContext(ConfirmCtx)

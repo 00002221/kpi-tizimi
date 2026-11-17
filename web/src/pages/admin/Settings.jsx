@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n, LANGS } from '../../i18n/index.jsx'
-import { Alert, Button, Field, PageHeader, Spinner, Toggle, useToast } from '../../components/ui.jsx'
+import { Alert, Button, Field, PageHeader, Spinner, Toggle, useToast, useConfirm } from '../../components/ui.jsx'
 import { errorText, fmtDate, getPosition, hhmm } from '../../lib/utils.js'
 
 const MapPicker = lazy(() => import('../../components/MapPicker.jsx'))
@@ -304,8 +304,9 @@ function JoinCodeSettings() {
   const { t } = useI18n()
   const { company, refresh } = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const regen = async () => {
-    if (!window.confirm(t('set.regen_confirm'))) return
+    if (!await confirm(t('set.regen_confirm'))) return
     const { error } = await supabase.rpc('regenerate_join_code')
     if (error) return toast(errorText(error, t), 'error')
     refresh()

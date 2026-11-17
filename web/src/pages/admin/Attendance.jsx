@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
-import { Alert, Button, Empty, Field, Modal, PageHeader, Spinner, StatusBadge, Tabs, useToast } from '../../components/ui.jsx'
+import { Alert, Button, Empty, Field, Modal, PageHeader, Spinner, StatusBadge, Tabs, useToast, useConfirm } from '../../components/ui.jsx'
 import { exportXlsx } from '../../lib/excel.js'
 import { cls, errorText, fmtDate, fmtMinutes, fmtTime, todayIn } from '../../lib/utils.js'
 
@@ -124,6 +124,7 @@ function EditRecord({ row, date, onClose, onSaved }) {
   const { t } = useI18n()
   const { company, member } = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const initial = ['present', 'late', 'excused', 'absent'].includes(row.status) ? row.status : 'excused'
   const [f, setF] = useState({
     status: initial,
@@ -153,7 +154,7 @@ function EditRecord({ row, date, onClose, onSaved }) {
   }
 
   const remove = async () => {
-    if (!window.confirm(t('att.delete_confirm'))) return
+    if (!await confirm(t('att.delete_confirm'))) return
     const { error } = await supabase.from('attendance').delete().eq('id', row.attendance_id)
     if (error) return toast(errorText(error, t), 'error')
     onSaved()

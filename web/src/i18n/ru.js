@@ -11,6 +11,8 @@ export default {
   'common.month': 'Месяц',
   'common.all': 'Все',
   'common.export_excel': 'Выгрузить в Excel',
+  'common.confirm_title': 'Подтвердите',
+  'common.confirm_yes': 'Да, продолжить',
   'common.copied': 'Скопировано',
   'unit.min': '{n} мин',
   'unit.hmin': '{h} ч {m} мин',

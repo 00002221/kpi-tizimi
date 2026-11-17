@@ -12,6 +12,8 @@ export default {
   'common.month': 'Oy',
   'common.all': 'Hammasi',
   'common.export_excel': "Excel'ga yuklash",
+  'common.confirm_title': 'Tasdiqlang',
+  'common.confirm_yes': 'Ha, davom etish',
   'common.copied': 'Nusxalandi',
   'unit.min': '{n} daq',
   'unit.hmin': '{h} soat {m} daq',
