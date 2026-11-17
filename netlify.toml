@@ -1,0 +1,5 @@
+# Netlify: sayt web/ papkasidan yig'iladi
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = "dist"
