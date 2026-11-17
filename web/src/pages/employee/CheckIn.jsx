@@ -155,6 +155,8 @@ export default function CheckIn({ embedded }) {
     msg = nowM - ws > 120 ? t('today.not_yet_long', { time: fromMin(ws) }) : t('today.late_now', { d: fmtMinutes(nowM - ws, t) })
   }
   else { state = 'missing'; msg = t('today.not_checked') }
+  // Ish kuni tugagach «Keldim» belgilanmaydi (server ham qabul qilmaydi)
+  const dayOver = !checkedIn && today.is_workday && nowM > we
 
   const inside = pos && pos.distance != null && pos.distance <= office.radius_m
   const busyLabel = phase === 'locating' ? t('checkin.locating') : phase === 'face' ? t('face.checking') : t('today.sending')
@@ -171,7 +173,7 @@ export default function CheckIn({ embedded }) {
         <div className="hero-chips">
           {checkedIn && <span className="chip">{t('today.came_at', { time: fmtTime(att.check_in_at, tz) })}</span>}
           {checkedOut && <span className="chip">{t('today.left_at', { time: fmtTime(att.check_out_at, tz) })}</span>}
-          {!checkedOut && office.lat != null && (
+          {!checkedOut && !dayOver && office.lat != null && (
             pos ? (
               <button className={cls('chip', !inside && 'chip-bad')} onClick={checkLocation}>
                 {inside && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>}
@@ -192,7 +194,7 @@ export default function CheckIn({ embedded }) {
             {error}
           </Alert>
         )}
-        {!checkedIn && needsFace && <FaceEnroll onDone={load} />}
+        {!checkedIn && needsFace && !dayOver && <FaceEnroll onDone={load} />}
 
         <section className="timeline-card">
           <h2>{t('today.timeline')}</h2>
@@ -214,7 +216,8 @@ export default function CheckIn({ embedded }) {
       </div>
 
       <div className="today-actions">
-        {!checkedIn && !needsFace && (
+        {dayOver && <p className="day-over-note">{t('today.day_over', { time: fromMin(we) })}</p>}
+        {!checkedIn && !needsFace && !dayOver && (
           <>
             <p className="slide-hint">{office.require_selfie ? t('today.hint_selfie') : t('today.hint_gps')}</p>
             <SlideConfirm label={t('today.slide_in')} busyLabel={busyLabel} loading={busy} disabled={office.lat == null} onConfirm={() => start('in')} />

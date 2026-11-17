@@ -471,4 +471,6 @@ export default {
   'err.OWN_COMPANY': 'You cannot change the status of a company you belong to.',
   'tg.send_photos': "Attach the employee's selfie",
   'tg.send_photos_hint': 'Check-in and late messages come with the selfie; on a face mismatch, the reference and today’s selfie. Everyone in the group sees the photos.',
+  'today.day_over': "The workday ended at {time}, so today's check-in can no longer be recorded. Ask your admin if needed.",
+  'err.WORKDAY_OVER': "The workday ended at {n}, so today's check-in can no longer be recorded. Ask your admin if needed.",
 }

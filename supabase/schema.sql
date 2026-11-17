@@ -686,6 +686,14 @@ begin
     raise exception 'ALREADY_CHECKED_IN';
   end if;
 
+  -- Ish kuni tugagach «Keldim» qabul qilinmaydi (dam olish kunlari cheklanmaydi)
+  select * into s from member_schedule where member_id = m.id;
+  if extract(isodow from v_date)::int = any(s.work_days)
+     and not exists (select 1 from holidays where company_id = c.id and day = v_date)
+     and (v_now at time zone c.timezone)::time > s.work_end then
+    raise exception 'WORKDAY_OVER' using hint = to_char(s.work_end, 'HH24:MI');
+  end if;
+
   -- Juda noaniq joylashuv (masalan, IP bo'yicha) qabul qilinmaydi
   if p_accuracy is not null and p_accuracy > greatest(c.radius_m * 2, 300) then
     raise exception 'LOW_ACCURACY' using hint = round(p_accuracy)::text;
