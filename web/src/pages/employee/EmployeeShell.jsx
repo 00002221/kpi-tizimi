@@ -1,7 +1,6 @@
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
-import { LangSwitch } from '../../components/ui.jsx'
 import CheckIn from './CheckIn.jsx'
 import MyTasks from './MyTasks.jsx'
 import MyStats from './MyStats.jsx'
@@ -30,7 +29,6 @@ export default function EmployeeShell() {
       {!isToday && (
         <header className="emp-top">
           <span className="emp-company">{company?.name}</span>
-          <LangSwitch />
         </header>
       )}
       <main className={isToday ? 'emp-main emp-main-today' : 'emp-main'}>

@@ -253,7 +253,6 @@ export default {
   // Baho
   'rate.sub': "Har oy har bir xodimni 1 dan 10 gacha baholang. Baho KPI'ning bir qismi bo'ladi.",
   'rate.comment_ph': 'Izoh (ixtiyoriy)',
-  'rate.save_n': 'Saqlash ({n})',
 
   // Sozlamalar
   'set.company': 'Kompaniya',
@@ -418,7 +417,7 @@ export default {
   'today.hint_gps': 'Joylashuv tekshiriladi',
   'today.sending': 'Yuborilmoqda…',
   'att.who_when': 'Kim qachon keldi',
-  'att.who_when_hint': "Ko'k chiziq — ish boshlanishi. Batafsil ko'rish uchun qatorni bosing.",
+  'att.who_when_hint': "Ko'k chiziq — ish boshlanishi, chiziqli zona — kechikish chegarasi. Batafsil ko'rish uchun qatorni bosing.",
   'set.presets': 'Tayyor jadvallar',
   'set.has_break': 'Tushlik tanaffusi bor',
   'set.unsaved': "{n} ta o'zgarish saqlanmagan",
@@ -453,4 +452,11 @@ export default {
   'att.auto_out_hint': '«Ketdim» bosilmagan: kun ish tugash vaqti bilan avtomatik yopilgan. Haqiqiy ketish vaqtini bilsangiz, quyida kiriting.',
   'att.checkout_time': 'Ketish vaqti',
   'att.checkout_time_hint': "Bo'sh qoldirilsa, ketish belgilanmagan hisoblanadi",
+  'common.prev': 'Oldingi',
+  'common.next': 'Keyingi',
+  'emp.invite_code': 'Taklif kodi',
+  'emp.invite_more': 'Batafsil',
+  'nav.att_s': 'Davomat',
+  'today.not_yet_long': 'Bugun hali kelmadingiz. Ish {time} da boshlangan.',
+  'att.scroll_hint': "Barcha kunlarni ko'rish uchun jadvalni yonga suring →",
 }

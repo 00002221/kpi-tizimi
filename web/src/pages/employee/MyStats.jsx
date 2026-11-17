@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
-import { Alert, Empty, Field, Spinner } from '../../components/ui.jsx'
+import { Alert, Empty, Spinner } from '../../components/ui.jsx'
 import KpiBreakdown from '../../components/KpiBreakdown.jsx'
 import MonthCalendar from '../../components/MonthCalendar.jsx'
 import { errorText, monthEnd, monthStart, todayIn } from '../../lib/utils.js'
+import { MonthPicker } from '../../components/DatePickers.jsx'
 
 export default function MyStats() {
   const { t } = useI18n()
@@ -38,9 +39,7 @@ export default function MyStats() {
     <div className="stack">
       <div className="row-between">
         <h1 className="page-title">{t('nav.my_stats')}</h1>
-        <Field className="field-inline">
-          <input type="month" value={month} max={todayIn(company?.timezone).slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value)} />
-        </Field>
+        <MonthPicker value={month} max={todayIn(company?.timezone).slice(0, 7)} onChange={setMonth} />
       </div>
       {error && <Alert kind="error">{error}</Alert>}
       {!data ? <Spinner /> : !data.row ? (

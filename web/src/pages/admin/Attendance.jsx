@@ -7,6 +7,7 @@ import { exportXlsx } from '../../lib/excel.js'
 import { fromMin, toMin } from '../../components/DayTimeline.jsx'
 import TimeInput from '../../components/TimeInput.jsx'
 import { cls, errorText, fmtDate, fmtMinutes, fmtTime, todayIn } from '../../lib/utils.js'
+import { MonthPicker, DayPicker } from '../../components/DatePickers.jsx'
 
 export default function Attendance() {
   const { t } = useI18n()
@@ -37,6 +38,12 @@ function Daily() {
   const [error, setError] = useState(null)
   const [edit, setEdit] = useState(null)
   const [photo, setPhoto] = useState(null)
+  const [grace, setGrace] = useState({}) // member_id -> kechikish chegarasi (daqiqa)
+
+  useEffect(() => {
+    supabase.from('member_schedule').select('member_id, grace_minutes').eq('company_id', company.id)
+      .then(({ data }) => setGrace(Object.fromEntries((data || []).map((g) => [g.member_id, g.grace_minutes || 0]))))
+  }, [company.id])
 
   const load = useCallback(async () => {
     setRows(null)
@@ -74,9 +81,7 @@ function Daily() {
   return (
     <>
       <div className="toolbar">
-        <Field className="field-inline" label={t('common.date')}>
-          <input type="date" value={date} max={today} onChange={(e) => e.target.value && setDate(e.target.value)} />
-        </Field>
+        <DayPicker value={date} max={today} onChange={setDate} />
         <div className="toolbar-spacer" />
         <Button variant="secondary" onClick={doExport} disabled={!rows?.length}>{t('common.export_excel')}</Button>
       </div>
@@ -85,7 +90,7 @@ function Daily() {
         <>
         <section className="panel only-mobile">
           <h2>{t('att.who_when')}</h2>
-          <Arrivals rows={rows} tz={tz} onOpen={(r) => r.status !== 'future' && setEdit(r)} />
+          <Arrivals rows={rows} tz={tz} grace={grace} onOpen={(r) => r.status !== 'future' && setEdit(r)} />
         </section>
         <div className="table-wrap only-desktop">
           <table className="table">
@@ -152,7 +157,7 @@ function Daily() {
 const ARR_ORDER = { present: 0, late: 0, not_yet: 1, absent: 2, excused: 3, holiday: 4, off: 5, future: 6 }
 
 // Telefonda: kim qachon keldi — har bir xodim uchun ish boshlanishi atrofidagi shkala
-function Arrivals({ rows, tz, onOpen }) {
+function Arrivals({ rows, tz, grace = {}, onOpen }) {
   const { t } = useI18n()
   const starts = rows.map((r) => toMin(r.work_start)).filter((v) => v != null)
   const minS = starts.length ? Math.min(...starts) : 540
@@ -195,6 +200,9 @@ function Arrivals({ rows, tz, onOpen }) {
             <span className="arr-name">{short(r.full_name)}{flagged && <span className="arr-flag" title={t('face.mismatch')}>!</span>}</span>
             {inM != null ? (
               <span className="arr-bar">
+                {grace[r.member_id] > 0 && (
+                  <span className="arr-grace-zone" style={{ left: `${pct(ws)}%`, width: `${pct(ws + grace[r.member_id]) - pct(ws)}%` }} />
+                )}
                 <span className="arr-start" style={{ left: `${pct(ws)}%` }} />
                 {r.status === 'late' && <span className="arr-late-seg" style={{ left: `${pct(ws)}%`, width: `${pct(inM) - pct(ws)}%` }} />}
                 <span className="arr-dot" style={{ left: `${pct(inM)}%`, background: r.status === 'late' ? 'var(--saffron)' : 'var(--firuza)' }} />
@@ -363,16 +371,15 @@ function Monthly() {
   return (
     <>
       <div className="toolbar">
-        <Field className="field-inline" label={t('common.month')}>
-          <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} />
-        </Field>
+        <MonthPicker value={month} onChange={setMonth} />
         <div className="toolbar-spacer" />
         <Button variant="secondary" onClick={doExport} disabled={!data?.matrix.length}>{t('common.export_excel')}</Button>
       </div>
       {error && <Alert kind="error">{error}</Alert>}
       {!data ? <Spinner /> : data.matrix.length === 0 ? <Empty title={t('att.no_employees')} /> : (
         <>
-          <div className="table-wrap">
+          <p className="muted small only-mobile" style={{ margin: '0 0 -6px' }}>{t('att.scroll_hint')}</p>
+          <div className="table-wrap" tabIndex={0} role="region" aria-label={t('att.monthly')}>
             <table className="table matrix">
               <thead>
                 <tr>

@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabase.js'
 import { useAuth } from '../../auth/AuthProvider.jsx'
 import { useI18n } from '../../i18n/index.jsx'
-import { Alert, Button, Empty, Field, PageHeader, Spinner, useToast } from '../../components/ui.jsx'
+import { Alert, Button, Empty, PageHeader, Spinner, useToast } from '../../components/ui.jsx'
 import { errorText, todayIn } from '../../lib/utils.js'
 import useMembers from './useMembers.js'
+import { MonthPicker } from '../../components/DatePickers.jsx'
 
 export default function Ratings() {
   const { t } = useI18n()
@@ -55,15 +56,9 @@ export default function Ratings() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title={t('nav.ratings')} sub={t('rate.sub')}>
-        <Button onClick={save} loading={busy} disabled={!changed.length}>
-          {changed.length ? t('rate.save_n', { n: changed.length }) : t('common.save')}
-        </Button>
-      </PageHeader>
+      <PageHeader title={t('nav.ratings')} sub={t('rate.sub')} />
       <div className="toolbar">
-        <Field className="field-inline" label={t('common.month')}>
-          <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} />
-        </Field>
+        <MonthPicker value={month} onChange={setMonth} />
       </div>
       {error && <Alert kind="error">{error}</Alert>}
       {!saved || !members ? <Spinner /> : people.length === 0 ? <Empty title={t('att.no_employees')} /> : (
@@ -95,6 +90,15 @@ export default function Ratings() {
             </li>
           ))}
         </ul>
+      )}
+      {changed.length > 0 && (
+        <div className="save-bar" role="status">
+          <span>{t('set.unsaved', { n: changed.length })}</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Button variant="ghost" onClick={() => setDraft(saved)}>{t('common.cancel')}</Button>
+            <Button onClick={save} loading={busy}>{t('common.save')}</Button>
+          </div>
+        </div>
       )}
     </div>
   )

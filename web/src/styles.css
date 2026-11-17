@@ -542,3 +542,104 @@ button.chip { cursor: pointer; }
 .temp-pw b { font-size: 17px; overflow-wrap: anywhere; }
 .temp-pw-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 26px !important; letter-spacing: .08em; color: var(--lapis); }
 .auto-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #FFF1CC; color: var(--saffron-ink); vertical-align: 1px; }
+
+/* ===== v5: telefon uchun dizayn tuzatishlari ===== */
+/* Oy / kun tanlagich — ilova tilida */
+.dpick { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--line-2); border-radius: 14px; height: 46px; }
+.dpick-arrow { width: 46px; height: 44px; border: 0; background: none; color: var(--lapis); display: grid; place-items: center; cursor: pointer; border-radius: 12px; }
+.dpick-arrow:hover:not(:disabled) { background: var(--lapis-50); }
+.dpick-arrow:disabled { color: var(--line-2); cursor: default; }
+.dpick-value { min-width: 136px; text-align: center; font: 600 16px var(--font); color: var(--ink); padding: 0 4px; }
+.dpick-open { position: relative; height: 44px; display: grid; place-items: center; cursor: pointer; }
+.dpick-open input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+
+/* Telefonda jadval o'rniga kartochkalar */
+.m-list { display: flex; flex-direction: column; gap: 10px; }
+.m-card { display: flex; align-items: center; gap: 12px; width: 100%; background: var(--surface); border: 0; border-radius: 18px; padding: 14px 16px; font: inherit; color: inherit; text-align: left; }
+button.m-card { cursor: pointer; }
+button.m-card:active { background: var(--lapis-50); }
+.m-card-col { flex-direction: column; align-items: stretch; gap: 10px; }
+.m-card-row { display: flex; align-items: center; gap: 12px; }
+.m-card-main { flex: 1; min-width: 0; }
+.m-card-title { font-weight: 700; font-size: 16px; line-height: 1.3; }
+.m-card-sub { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-card-sub:empty { display: none; }
+.m-card-side { display: flex; align-items: center; gap: 6px; text-align: right; flex: none; }
+.m-card-num { font-weight: 600; font-size: 14px; }
+.m-chev { color: var(--muted); }
+.m-card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.tag { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 99px; background: var(--paper); color: var(--ink-2); }
+.m-avatar { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--lapis-50); color: var(--lapis); font-weight: 700; }
+.m-card .thumb { width: 40px; height: 40px; flex: none; }
+.m-card-money { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.m-card-money b { font-size: 18px; }
+.m-card-facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.m-card-facts b { color: var(--ink); font-weight: 600; }
+.m-card-actions { display: flex; gap: 8px; }
+.m-card-actions .btn { flex: 1 1 0; height: 44px; }
+.m-card-total { justify-content: space-between; font-size: 16px; background: var(--lapis-50); }
+.m-card-alert { box-shadow: inset 4px 0 0 var(--pom); }
+
+/* Ixcham taklif bloki */
+.invite-compact { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-left: 4px solid var(--firuza); }
+.code-mid { font-size: 20px; letter-spacing: .12em; color: var(--lapis); }
+
+/* «Kim qachon keldi»: kechikish chegarasi zonasi */
+.arr-grace-zone { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(233, 161, 0, .22) 0 4px, transparent 4px 8px); }
+
+/* Jadval yonga suriladi — chetida soya */
+@media (max-width: 860px) {
+  .table-wrap {
+    background:
+      linear-gradient(to right, var(--surface) 30%, rgba(255, 255, 255, 0)),
+      linear-gradient(to left, var(--surface) 30%, rgba(255, 255, 255, 0)) 100% 0,
+      radial-gradient(farthest-side at 0 50%, rgba(27, 31, 59, .18), transparent),
+      radial-gradient(farthest-side at 100% 50%, rgba(27, 31, 59, .18), transparent) 100% 0;
+    background-color: var(--surface);
+    background-repeat: no-repeat;
+    background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+}
+
+/* Baholash: telefonda 5×2 katta tugmalar */
+@media (max-width: 860px) {
+  .score-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; flex-wrap: initial; }
+  .score { width: 100%; height: 46px; font-size: 16px; border-radius: 12px; }
+}
+
+/* Til tugmalari — barmoq uchun kattaroq */
+.lang-switch button { min-height: 32px; min-width: 38px; padding: 6px 10px; font-size: 13px; }
+.chip { min-height: 36px; }
+
+/* Pastki menyu yozuvlari sig'masa — kesiladi, yopishmaydi */
+.admin-bottomnav a, .admin-bottomnav button, .tabbar a { min-width: 0; padding: 0 2px; }
+.admin-bottomnav span, .tabbar span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Xodim vazifasi: tugmalar har doim pastda, o'ngda */
+.task-item { flex-direction: column; align-items: stretch; }
+.task-actions { justify-content: flex-end; }
+@media (max-width: 560px) { .task-actions .btn { flex: 1 1 0; height: 44px; } }
+
+/* Oy kalendari: dam olish va kelajak kunlari o'qiladigan bo'lsin */
+.cal-day.st-off, .cal-day.st-future { color: #6E7491; }
+
+/* Past ekranli telefonlar: «Bugun» bitta ekranga sig'sin */
+@media (max-height: 760px) {
+  .hero { padding-bottom: 20px; }
+  .hero-date { margin-top: 10px; }
+  .hero-clock { font-size: clamp(60px, 19vw, 80px); }
+  .today { gap: 12px; }
+}
+@media (max-width: 380px) {
+  .slide-label { font-size: 15px; padding-left: 76px; padding-right: 12px; }
+}
+/* Kontrast: rangli fonlarda matn shaffof bo'lmasin; yashil plitka biroz to'qroq */
+.hero-date { opacity: 1; }
+.tile-label { opacity: 1; }
+.tile-present { background: var(--firuza-700); }
+.admin-bottomnav a, .admin-bottomnav button, .tabbar a { font-size: 12px; }
+.hero-missing .chip:not(.chip-bad) { background: rgba(70, 0, 0, .24); }
+.hero-ontime .chip { background: rgba(0, 40, 20, .22); }
+.task-item .task-main { flex: none; }
+.slide-hint { margin-bottom: 2px; }

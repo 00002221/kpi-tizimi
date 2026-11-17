@@ -113,8 +113,8 @@ export default function Dashboard() {
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={trend} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barCategoryGap="18%">
                   <CartesianGrid vertical={false} stroke={CHART.grid} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART.axis }} tickLine={false} axisLine={{ stroke: CHART.grid }} interval="preserveStartEnd" minTickGap={14} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART.axis }} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 12, fill: CHART.axis }} tickLine={false} axisLine={{ stroke: CHART.grid }} interval="preserveStartEnd" minTickGap={14} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: CHART.axis }} tickLine={false} axisLine={false} />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(35,37,92,.06)' }} />
                   <Bar dataKey="on_time" name={t('status.present')} stackId="a" fill={CHART.present} stroke="#fff" strokeWidth={2} />
                   <Bar dataKey="late" name={t('status.late')} stackId="a" fill={CHART.late} stroke="#fff" strokeWidth={2} />
@@ -153,7 +153,7 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height={Math.max(160, kpiRows.length * 34 + 30)}>
               <BarChart data={kpiRows} layout="vertical" margin={{ top: 0, right: 40, left: 0, bottom: 0 }}>
                 <CartesianGrid horizontal={false} stroke={CHART.grid} />
-                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: CHART.axis }} tickLine={false} axisLine={false} />
+                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 12, fill: CHART.axis }} tickLine={false} axisLine={false} />
                 <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 12, fill: '#1B1F3B' }} tickLine={false} axisLine={false} />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(35,37,92,.06)' }} />
                 <Bar dataKey="kpi" name="KPI" fill={CHART.kpi} radius={[0, 4, 4, 0]} barSize={18}
