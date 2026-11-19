@@ -6,6 +6,8 @@ import { Alert, Button, Field, PageHeader, Spinner, Toggle, useToast, useConfirm
 import { errorText, fmtDate, getPosition, hhmm } from '../../lib/utils.js'
 import TimeInput from '../../components/TimeInput.jsx'
 import DayTimeline from '../../components/DayTimeline.jsx'
+import LocationFinder from '../../components/LocationFinder.jsx'
+import { validLatLng } from '../../lib/geo.js'
 
 const MapPicker = lazy(() => import('../../components/MapPicker.jsx'))
 
@@ -66,12 +68,14 @@ export default function Settings() {
 
   const save = async () => {
     if (wSum !== 100) return toast(t('set.weights_error', { n: wSum }), 'error')
+    const coord = (v) => (v === '' || v == null ? null : Number(String(v).replace(',', '.')))
+    const lat = coord(f.office_lat), lng = coord(f.office_lng)
+    if ((lat != null || lng != null) && !validLatLng(lat, lng)) return toast(t('loc.bad_coords'), 'error')
     setBusy(true)
     const num = (v) => Number(v) || 0
     const payload = {
       name: f.name.trim() || company.name, default_lang: f.default_lang, timezone: f.timezone, currency: f.currency.trim() || 'UZS',
-      office_lat: f.office_lat === '' || f.office_lat == null ? null : Number(f.office_lat),
-      office_lng: f.office_lng === '' || f.office_lng == null ? null : Number(f.office_lng),
+      office_lat: lat, office_lng: lng,
       radius_m: Math.min(5000, Math.max(10, num(f.radius_m))), require_selfie: f.require_selfie,
       face_check: f.require_selfie && f.face_check,
       work_start: f.work_start, work_end: f.work_end, grace_minutes: num(f.grace_minutes),
@@ -121,10 +125,11 @@ export default function Settings() {
             />
           </Suspense>
           <div className="stack">
+            <LocationFinder onPick={(lat, lng) => setF((x) => ({ ...x, office_lat: lat, office_lng: lng }))} />
             <Button variant="secondary" onClick={useMyLocation} loading={locBusy}>{t('set.use_my_location')}</Button>
             <div className="grid-2-tight">
-              <Field label={t('set.lat')}><input type="number" step="0.000001" value={f.office_lat ?? ''} onChange={set('office_lat')} /></Field>
-              <Field label={t('set.lng')}><input type="number" step="0.000001" value={f.office_lng ?? ''} onChange={set('office_lng')} /></Field>
+              <Field label={t('set.lat')}><input type="text" inputMode="decimal" autoComplete="off" value={f.office_lat ?? ''} onChange={set('office_lat')} /></Field>
+              <Field label={t('set.lng')}><input type="text" inputMode="decimal" autoComplete="off" value={f.office_lng ?? ''} onChange={set('office_lng')} /></Field>
             </div>
             <Field label={t('set.radius', { n: f.radius_m })} hint={t('set.radius_hint')}>
               <input type="range" min="20" max="1000" step="10" value={f.radius_m} onChange={set('radius_m')} />

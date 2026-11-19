@@ -644,3 +644,14 @@ button.m-card:active { background: var(--lapis-50); }
 .task-item .task-main { flex: none; }
 .slide-hint { margin-bottom: 2px; }
 .day-over-note { text-align: center; color: var(--ink-2); font-weight: 500; margin: 0; line-height: 1.45; }
+
+/* ===== Joylashuvni topish ===== */
+.loc-finder { display: flex; flex-direction: column; gap: 6px; }
+.loc-row { display: flex; gap: 8px; }
+.loc-row input { flex: 1; min-width: 0; }
+.loc-ok { color: var(--firuza-700); margin: 0; }
+.loc-err { color: var(--pom-ink); margin: 0; }
+.loc-results { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.loc-results li + li { border-top: 1px solid var(--line); }
+.loc-results button { display: block; width: 100%; text-align: left; background: var(--surface); border: 0; padding: 10px 12px; font: 14px/1.35 var(--font); color: var(--ink); cursor: pointer; min-height: 44px; }
+.loc-results button:hover, .loc-results button:focus-visible { background: var(--lapis-50); }
