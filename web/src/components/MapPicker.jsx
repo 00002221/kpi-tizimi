@@ -1,11 +1,16 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { validLatLng } from '../lib/geo.js'
 
 const DEFAULT = [41.3111, 69.2797] // Toshkent
 
 // Xaritada ishxona nuqtasi va radiusi. Bosilgan joy — yangi nuqta.
-export default function MapPicker({ lat, lng, radius, onPick }) {
+export default function MapPicker({ lat: rawLat, lng: rawLng, radius, onPick }) {
+  // Maydonga yozilayotgan chala son («4», «-», «») xaritani buzmasin: faqat to'g'ri koordinata chiziladi
+  const lat = rawLat === '' || rawLat == null ? NaN : Number(String(rawLat).replace(',', '.'))
+  const lng = rawLng === '' || rawLng == null ? NaN : Number(String(rawLng).replace(',', '.'))
+  const has = validLatLng(lat, lng)
   const box = useRef(null)
   const map = useRef(null)
   const layers = useRef({})
@@ -13,7 +18,6 @@ export default function MapPicker({ lat, lng, radius, onPick }) {
   pickRef.current = onPick
 
   useEffect(() => {
-    const has = lat != null && lng != null
     const m = L.map(box.current, { zoomControl: true }).setView(has ? [lat, lng] : DEFAULT, has ? 17 : 12)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -28,7 +32,7 @@ export default function MapPicker({ lat, lng, radius, onPick }) {
     const m = map.current
     if (!m) return
     const { circle, dot } = layers.current
-    if (lat == null || lng == null) return
+    if (!has) return
     const ll = [lat, lng]
     if (circle) {
       circle.setLatLng(ll).setRadius(radius || 100)
@@ -42,7 +46,7 @@ export default function MapPicker({ lat, lng, radius, onPick }) {
       }).addTo(m)
     }
     if (!m.getBounds().contains(ll)) m.setView(ll, Math.max(m.getZoom(), 16))
-  }, [lat, lng, radius])
+  }, [has, lat, lng, radius])
 
   return <div ref={box} className="map-box" />
 }
