@@ -709,6 +709,8 @@ begin
        or not exists (select 1 from storage.objects where bucket_id = 'selfies' and name = p_selfie) then
       raise exception 'SELFIE_INVALID';
     end if;
+    -- Selfida yuz bo'lishi shart (ilova yuz izini yuboradi; yuz yo'q rasm — masalan, xona surati — qabul qilinmaydi)
+    if jsonb_to_face(p_face) is null then raise exception 'NO_FACE'; end if;
   end if;
 
   -- Yuzni namunaga solishtirish: mos kelmasa ham kelish yoziladi, lekin "shubhali" deb belgilanadi

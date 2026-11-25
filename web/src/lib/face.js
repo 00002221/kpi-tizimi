@@ -58,3 +58,11 @@ export async function faceDescriptor(blob) {
 
 // Masofa (0 — bir xil) -> o'xshashlik foizi
 export const similarity = (distance) => (distance == null ? null : Math.max(0, Math.round((1 - distance) * 100)))
+
+// Jonli kamerada yuz bormi — tez tekshiruv (faqat kichik detektor, deskriptorsiz)
+export async function faceInVideo(video) {
+  const faceapi = await loadFaceModels()
+  if (!video || !video.videoWidth) return false
+  const r = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.45 }))
+  return Boolean(r)
+}
