@@ -104,6 +104,9 @@ export default {
   'selfie.use': 'Tasdiqlash',
   'selfie.no_camera': "Kamera ochilmadi. Brauzerga kameraga ruxsat bering yoki quyidagi tugma orqali suratga oling.",
   'selfie.open_camera': 'Kamerani ochish',
+  'selfie.face_loading': "Yuzni aniqlash tayyorlanmoqda…",
+  'selfie.face_wait': "Yuzingizni aylanaga qarating — yuz ko'rinmaguncha suratga olib bo'lmaydi.",
+  'selfie.face_ok': "Yuz topildi. Suratga oling.",
 
   // Vazifalar
   'task.todo': 'Yangi',
@@ -396,6 +399,7 @@ export default {
   'dash.check': "Ko'rish",
   'err.FACE_NOT_ENROLLED': 'Avval yuz namunasini bering.',
   'err.FACE_NOT_FOUND': "Rasmda yuz topilmadi. Yorug' joyda, yuzingizni to'liq ko'rsatib qayta suratga tushing.",
+  'err.NO_FACE': "Selfida yuz topilmadi. Telefonni yuzingizga qaratib, qayta suratga oling.",
   'err.FACE_ALREADY_ENROLLED': 'Yuz namunasi allaqachon saqlangan.',
   'err.FACE_CONSENT_REQUIRED': "Davom etish uchun rozilik belgisini qo'ying.",
   'err.FACE_MODEL': "Yuz tanish dasturi yuklanmadi. Internetni tekshirib, qayta urinib ko'ring.",

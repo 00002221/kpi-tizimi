@@ -18,11 +18,11 @@ export default function FaceEnroll({ onDone }) {
 
   useEffect(() => { loadFaceModels().catch(() => {}) }, [])
 
-  const onCapture = async (blob) => {
+  const onCapture = async (blob, d) => {
     setPhase('processing')
     setError(null)
     try {
-      const descriptor = await faceDescriptor(blob)
+      const descriptor = d || await faceDescriptor(blob)
       if (!descriptor) throw new Error('FACE_NOT_FOUND')
       const path = `${member.company_id}/${member.user_id}/face-${Date.now()}.jpg`
       const up = await supabase.storage.from('selfies').upload(path, blob, { contentType: 'image/jpeg' })
@@ -49,7 +49,7 @@ export default function FaceEnroll({ onDone }) {
       <Button size="xl" disabled={!consent} loading={phase === 'processing'} onClick={() => setPhase('camera')}>
         {phase === 'processing' ? t('face.processing') : t('face.enroll_btn')}
       </Button>
-      <CameraCapture open={phase === 'camera'} onClose={() => setPhase('idle')} onCapture={onCapture} />
+      <CameraCapture requireFace open={phase === 'camera'} onClose={() => setPhase('idle')} onCapture={onCapture} />
     </section>
   )
 }

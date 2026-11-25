@@ -99,6 +99,9 @@ export default {
   'selfie.use': 'Confirm',
   'selfie.no_camera': "The camera didn't open. Allow camera access in the browser, or take a photo with the button below.",
   'selfie.open_camera': 'Open camera',
+  'selfie.face_loading': "Getting face detection ready…",
+  'selfie.face_wait': "Point the camera at your face — you can't take the photo until your face is visible.",
+  'selfie.face_ok': "Face found. Take the photo.",
 
   'task.todo': 'New',
   'task.in_progress': 'In progress',
@@ -382,6 +385,7 @@ export default {
   'dash.check': 'Review',
   'err.FACE_NOT_ENROLLED': 'Add your face sample first.',
   'err.FACE_NOT_FOUND': 'No face found in the photo. Retake it in good light with your whole face in the frame.',
+  'err.NO_FACE': "No face found in the selfie. Point the phone at your face and take it again.",
   'err.FACE_ALREADY_ENROLLED': 'A face sample is already saved.',
   'err.FACE_CONSENT_REQUIRED': 'Tick the consent box to continue.',
   'err.FACE_MODEL': "Face recognition didn't load. Check your connection and try again.",

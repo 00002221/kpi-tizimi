@@ -655,3 +655,11 @@ button.m-card:active { background: var(--lapis-50); }
 .loc-results li + li { border-top: 1px solid var(--line); }
 .loc-results button { display: block; width: 100%; text-align: left; background: var(--surface); border: 0; padding: 10px 12px; font: 14px/1.35 var(--font); color: var(--ink); cursor: pointer; min-height: 44px; }
 .loc-results button:hover, .loc-results button:focus-visible { background: var(--lapis-50); }
+
+/* ===== Selfi: yuz bo'lmaguncha suratga olib bo'lmaydi ===== */
+.camera-frame { transition: border-color .2s; }
+.camera-frame.face-ok { border-color: var(--firuza-600, #138A5E); }
+.camera-frame.face-none { border-color: #E0A100; }
+.face-status { text-align: center; margin: 10px 0 0; font-size: 15px; font-weight: 500; color: var(--ink-2, #3F4463); }
+.face-status.is-ok { color: var(--firuza-700); }
+.face-status.is-bad { color: #8A5A00; }

@@ -48,7 +48,9 @@ export default function CheckIn({ embedded }) {
 
   useEffect(() => { load() }, [load])
   const faceRequired = Boolean(today?.face?.required)
-  useEffect(() => { if (faceRequired) loadFaceModels().catch(() => {}) }, [faceRequired])
+  const selfieRequired = Boolean(today?.office?.require_selfie)
+  // Selfida yuz bo'lishi shart — model oldindan yuklanib turadi
+  useEffect(() => { if (faceRequired || selfieRequired) loadFaceModels().catch(() => {}) }, [faceRequired, selfieRequired])
   useEffect(() => {
     const id = setInterval(() => setClock(nowTimeIn(tz)), 1000 * 15)
     return () => clearInterval(id)
@@ -103,12 +105,12 @@ export default function CheckIn({ embedded }) {
     }
   }
 
-  const send = async (kind, p, blob) => {
+  const send = async (kind, p, blob, descriptor = null) => {
     setPhase('sending')
     try {
       let selfiePath = null
-      let face = null
-      if (kind === 'in' && blob && today.face?.required) {
+      let face = descriptor
+      if (kind === 'in' && blob && !face) {
         setPhase('face')
         try { face = await faceDescriptor(blob) } catch { face = null } // model yuklanmasa — "shubhali" bo'ladi
         setPhase('sending')
@@ -229,7 +231,7 @@ export default function CheckIn({ embedded }) {
         {checkedOut && <p className="done-note">{t('checkin.day_done')}</p>}
       </div>
 
-      <CameraCapture open={phase === 'camera'} onClose={() => setPhase('idle')} onCapture={(blob) => send('in', pos, blob)} />
+      <CameraCapture requireFace open={phase === 'camera'} onClose={() => setPhase('idle')} onCapture={(blob, d) => send('in', pos, blob, d)} />
 
       <Modal
         open={Boolean(confirmEarly)}
